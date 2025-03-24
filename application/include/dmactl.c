@@ -424,6 +424,7 @@ static int xnl_send_cmd(struct xnl_cb *cb, struct xnl_hdr *hdr,
         	xnl_msg_add_extra_config_attrs(hdr, xcmd);
         case XNL_CMD_Q_STOP:
         case XNL_CMD_Q_DEL:
+		case XNL_CMD_GET_Q_STATE:
         case XNL_CMD_Q_DUMP:
 		xnl_msg_add_int_attr(hdr, XNL_ATTR_QIDX, xcmd->req.qparm.idx);
 		xnl_msg_add_int_attr(hdr, XNL_ATTR_NUM_Q, xcmd->req.qparm.num_q);

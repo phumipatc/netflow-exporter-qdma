@@ -31,8 +31,8 @@ static int (*xnl_proc_fn[XNL_CMD_MAX])(struct xcmd_info *xcmd) = {
 	NULL,                    /* XNL_CMD_Q_UDD */
 	qdma_dev_get_global_csr, /* XNL_CMD_GLOBAL_CSR */
 	qdma_dev_cap,            /* XNL_CMD_DEV_CAP */
-	NULL,                    /* XNL_CMD_GET_Q_STATE */
-	qdma_reg_info_read,       /* XNL_CMD_REG_INFO_READ */
+	qdma_q_get_state,        /* XNL_CMD_GET_Q_STATE */
+	qdma_reg_info_read,      /* XNL_CMD_REG_INFO_READ */
 #ifdef TANDEM_BOOT_SUPPORTED
 	qdma_en_st,           /* XNL_CMD_EN_ST */
 #endif
