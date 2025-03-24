@@ -5,6 +5,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <time.h>
@@ -14,12 +15,35 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+/* 
+    Shared variables between main thread and data processing thread
+*/
+volatile int shouldExit = 0;
+volatile int isNormalDataReady = 0;
+
+int sharedNumTokens = 0;
+
+char sharedTokens[512][2048];
+
+pthread_mutex_t normalDataMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t normalDataCond = PTHREAD_COND_INITIALIZER;
+
+/*
+    Global variables for graceful exit
+*/
 int fd; // Global file descriptor for graceful exit
 int mock_fd; // Global file descriptor for mock data
 
 // Signal handler
 void gracefulExit(int sig) {
     printf("Caught signal %d\n", sig);
+
+    shouldExit = 1;
+
+    pthread_mutex_lock(&normalDataMutex);
+    pthread_cond_signal(&normalDataCond);
+    pthread_mutex_unlock(&normalDataMutex);
+
     if (fd >= 0) {
         close(fd);
         printf("File descriptor closed.\n");
@@ -49,6 +73,89 @@ void ensureDirectoryExists(const char* dirPath) {
     }
 }
 
+void* processNormalData(void* programArgs) {
+    program_args_t* args = (program_args_t*)programArgs;
+    normal_data_t normal_data_array[512];
+
+    char filePath[256];
+    char normalDirPath[256];
+    char timestamp[32];
+    char writingBuffer[2048 * 512];
+
+    char** tokens = (char**)sharedTokens;
+
+    int recordCount;
+    int numTokens;
+    int ret;
+
+    if (args->verbose) {
+        printf("Normal data processing thread started\n");
+    }
+
+    snprintf(normalDirPath, sizeof(normalDirPath), "%s/normal", args->dir_path);
+
+    // Ensure directories exist
+    ensureDirectoryExists(normalDirPath);
+
+    while(!shouldExit) {
+        pthread_mutex_lock(&normalDataMutex);
+
+        if(args->verbose) {
+            printf("Normal data processing thread waiting for signal\n");
+        }
+        while (!isNormalDataReady && !shouldExit) {
+            pthread_cond_wait(&normalDataCond, &normalDataMutex);
+        }
+
+        if (shouldExit) {
+            pthread_mutex_unlock(&normalDataMutex);
+            break;
+        }
+
+        numTokens = sharedNumTokens;
+
+        if (args->verbose) {
+            printf("Normal data processing thread processing %d tokens\n", numTokens);
+        }
+
+        recordCount = 0; // Reset record count for this batch
+        for (int i = 0; i < numTokens; ++i) {
+            ret = extractNormalData(&normal_data_array[recordCount], tokens[i], strlen(tokens[i]));
+            if (ret < 0) {
+                printf("Error in extracting normal data with ret = %d\n", ret);
+                continue;
+            }
+            recordCount++;
+        }
+
+        if (recordCount > 0) {
+            ret = convertArrayOfNormalDataToCSV(normal_data_array, recordCount, writingBuffer);
+            if (ret < 0) {
+                printf("Error in converting data to CSV\n");
+                continue;
+            }
+
+            getCurrentTimestamp(timestamp, sizeof(timestamp));
+            snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", normalDirPath, timestamp);
+
+            ret = writeToFile(filePath, writingBuffer, strlen(writingBuffer));
+            if (ret < 0) {
+                printf("Error in writing to file\n");
+                continue;
+            }
+
+            if (args->verbose) {
+                printf("Data written to file: %s\n", filePath);
+            }
+        }
+
+        isNormalDataReady = 0;
+        pthread_mutex_unlock(&normalDataMutex);
+    }
+
+    return NULL;
+}
+
 int main(int argc, char* argv[]) {
     // Variable declarations
     program_args_t args;
@@ -65,15 +172,11 @@ int main(int argc, char* argv[]) {
 
     unsigned char buffer[512 * 2048]; // Buffer for multiple records
 
-	char filePath[256];
+	
     char qdmaDevPath[256];
-	char normalDirPath[256];
-    char netflowDirPath[256];
     char separator[] = {0x0D, 0x0A};
-	char timestamp[32];
     char token_address[512][2048]; // Global token address for tokenizing data
     char **tokens = (char **)token_address;
-	char writingBuffer[2048 * 512]; // Buffer for multiple records
 
     // Parse command-line arguments
     parseArguments(argc, argv, &args);
@@ -82,12 +185,6 @@ int main(int argc, char* argv[]) {
 		return 0;
 	}
 
-    // Ensure directories exist
-    snprintf(normalDirPath, sizeof(normalDirPath), "%s/normal", args.dir_path);
-    snprintf(netflowDirPath, sizeof(netflowDirPath), "%s/full", args.dir_path);
-    ensureDirectoryExists(normalDirPath);
-    ensureDirectoryExists(netflowDirPath);
-
     // Convert device and queue IDs to numeric values
     unsigned int device_id_num = strtoul(args.device_id, NULL, 16);
     unsigned int queue_id_num = strtoul(args.queue_id, NULL, 10);
@@ -95,6 +192,9 @@ int main(int argc, char* argv[]) {
     // Signal handling
     signal(SIGINT, gracefulExit);
     signal(SIGTERM, gracefulExit);
+
+    pthread_t normalDataProcessingThread;
+    pthread_create(&normalDataProcessingThread, NULL, processNormalData, &args);
 
     if (args.mockBool) {
         if (args.verbose) {
@@ -135,7 +235,9 @@ int main(int argc, char* argv[]) {
     }
 
     // Main processing loop
-    while (1) {
+    while (!shouldExit) {
+        clock_t start = clock();
+
         if (!args.mockBool) {
             ret = peek_qdma_data_len(fd, &c2h_peek_data);
             if (ret < 0) {
@@ -148,6 +250,9 @@ int main(int argc, char* argv[]) {
             // wait for mock signal
             printf("Waiting for mock signal\n");
             scanf("%d", &mock_signal);
+            if(mock_signal != 1){
+                break;
+            }
         }
 
         if (c2h_peek_data.data_len > 0 || mock_datalen > 0) {
@@ -175,46 +280,33 @@ int main(int argc, char* argv[]) {
             }
 
             // the separator is array of 2 bytes, 0x0D and 0x0A
-            
             ret = tokenizeData(buffer, separator, tokens, &numTokens);
             if (ret < 0) {
                 printf("Error in tokenizing data with ret = %d\n", ret);
                 continue;
+            } else if(args.verbose) {
+                printf("Tokenized data into %d tokens\n", numTokens);
             }
+            pthread_mutex_lock(&normalDataMutex);
+            memcpy(sharedTokens, tokens, sizeof(sharedTokens));
+            sharedNumTokens = numTokens;
+            isNormalDataReady = 1;
+            pthread_cond_signal(&normalDataCond);
+            pthread_mutex_unlock(&normalDataMutex);
+        }
 
-            recordCount = 0; // Reset record count for this batch
-            for (int i = 0; i < numTokens; ++i) {
-                ret = extractNormalData(&normal_data_array[recordCount], tokens[i], strlen(tokens[i]));
-                if (ret < 0) {
-                    printf("Error in extracting normal data with ret = %d\n", ret);
-                    continue;
-                }
-                recordCount++;
+        clock_t elasped = clock() - start;
+        double sleepTime = 1.0 - ((double)elasped / CLOCKS_PER_SEC);
+        if (sleepTime > 0) {
+            if(args.verbose) {
+                printf("Sleeping for %f seconds\n", sleepTime);
             }
-
-            if (recordCount > 0) {
-                ret = convertArrayOfNormalDataToCSV(normal_data_array, recordCount, writingBuffer);
-                if (ret < 0) {
-                    printf("Error in converting data to CSV\n");
-                    continue;
-                }
-
-                getCurrentTimestamp(timestamp, sizeof(timestamp));
-                snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", normalDirPath, timestamp);
-
-                ret = writeToFile(filePath, writingBuffer, strlen(writingBuffer));
-                if (ret < 0) {
-                    printf("Error in writing to file\n");
-                    continue;
-                }
-
-                if (args.verbose) {
-                    printf("Data written to file: %s\n", filePath);
-                }
-            }
+            usleep(sleepTime * 1e6);
         }
     }
 
-    close(fd); // Close file descriptor before exit
+    pthread_join(normalDataProcessingThread, NULL);
+    gracefulExit(0);
+
     return 0;
 }
