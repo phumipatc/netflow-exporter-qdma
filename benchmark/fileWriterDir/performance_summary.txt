@@ -1,0 +1,39 @@
+Target File Size: 1500000000 bytes
+Number of Trials: 5
+Buffer Size: 1464 bytes
+
+Trial 1: Writing to /media/hoshino/nvme/test/output_trials/output_trial_1.bin...
+Elapsed Time: 1.153730 seconds
+Throughput: 1239.902664 MB/s
+Write Count: 1024591
+Total Data Written: 1500001224 bytes
+
+Trial 2: Writing to /media/hoshino/nvme/test/output_trials/output_trial_2.bin...
+Elapsed Time: 1.099404 seconds
+Throughput: 1301.170755 MB/s
+Write Count: 1024591
+Total Data Written: 1500001224 bytes
+
+Trial 3: Writing to /media/hoshino/nvme/test/output_trials/output_trial_3.bin...
+Elapsed Time: 1.113026 seconds
+Throughput: 1285.246236 MB/s
+Write Count: 1024591
+Total Data Written: 1500001224 bytes
+
+Trial 4: Writing to /media/hoshino/nvme/test/output_trials/output_trial_4.bin...
+Elapsed Time: 1.181424 seconds
+Throughput: 1210.837185 MB/s
+Write Count: 1024591
+Total Data Written: 1500001224 bytes
+
+Trial 5: Writing to /media/hoshino/nvme/test/output_trials/output_trial_5.bin...
+Elapsed Time: 1.082642 seconds
+Throughput: 1321.316378 MB/s
+Write Count: 1024591
+Total Data Written: 1500001224 bytes
+
+=== Performance Summary ===
+Total Data Written Across All Trials: 7500006120 bytes
+Average Elapsed Time: 1.126045 seconds
+Average Throughput: 1271.694644 MB/s
+Total Write Count Across All Trials: 5122955

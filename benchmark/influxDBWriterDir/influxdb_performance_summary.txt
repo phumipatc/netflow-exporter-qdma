@@ -1,0 +1,25 @@
+Target Points: 100000
+Number of Trials: 3
+Point Size: 1464 bytes
+Batch Size: 10000 points
+
+Trial 1: Writing 100000 points to InfluxDB...
+Elapsed Time: 4.981126 seconds
+Throughput: 20075.781244 points/second
+Points Written: 100000
+
+Trial 2: Writing 100000 points to InfluxDB...
+Elapsed Time: 4.893037 seconds
+Throughput: 20437.206287 points/second
+Points Written: 100000
+
+Trial 3: Writing 100000 points to InfluxDB...
+Elapsed Time: 4.910893 seconds
+Throughput: 20362.897110 points/second
+Points Written: 100000
+
+=== Performance Summary ===
+Total Points Written Across All Trials: 300000
+Average Elapsed Time: 4.928352 seconds
+Average Throughput (Points/second): 20291.961547 points/second
+Average Throughput (MB/second): 28.331215 MB/second

@@ -1,0 +1,1 @@
+cmd_/home/hoshino/netflow-analyzer/modified_qdma_driver/driver/src/Module.symvers :=  sed 's/ko$$/o/'  /home/hoshino/netflow-analyzer/modified_qdma_driver/driver/src/modules.order | scripts/mod/modpost -m -a    -o /home/hoshino/netflow-analyzer/modified_qdma_driver/driver/src/Module.symvers -e -i Module.symvers -T - 

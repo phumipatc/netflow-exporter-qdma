@@ -1,0 +1,26 @@
+Target Points: 100000
+Number of Trials: 2
+InfluxDB Host: 127.0.0.1
+InfluxDB Port: 8086
+Point Size: 1464 bytes
+Batch Size: 40000 points
+
+Trial 1: Writing 100000 points to InfluxDB...
+Elapsed Time: 2.504236 seconds
+Throughput: 39932.343732 points/second
+Points Written: 100000
+
+Trial 2: Writing 100000 points to InfluxDB...
+Elapsed Time: 2.385094 seconds
+Throughput: 41927.075910 points/second
+Points Written: 100000
+
+=== Performance Summary ===
+Total Points Written Across All Trials: 200000
+Average Elapsed Time: 2.444665 seconds
+Average Throughput (points/second): 40929.709821 points/second
+Average Throughput (size/second): 59921095.177934 bytes/second
+
+
+
+

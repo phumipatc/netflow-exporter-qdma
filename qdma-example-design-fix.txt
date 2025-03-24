@@ -1,0 +1,6 @@
+# `dma-ctl dev list` not working?
+1. `lsmod` and check for qdma driver.
+2. `lspci -vvv` to check for pci device and driver in used.
+	2.1 If the driver is not in used, `sudo dmesg` to read error message.
+		2.1.1 If the error message is "invalid config bar", check the default grub in `/etc/default/grub` and ensure that the iommu is enabled.
+		2.1.2 `update-grub` to update default grub and restart the machine.

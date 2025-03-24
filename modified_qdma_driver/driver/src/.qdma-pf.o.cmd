@@ -1,0 +1,1 @@
+cmd_/home/hoshino/netflow-analyzer/modified_qdma_driver/driver/src/qdma-pf.o := ld -m elf_x86_64 -z noexecstack   -r -o /home/hoshino/netflow-analyzer/modified_qdma_driver/driver/src/qdma-pf.o @/home/hoshino/netflow-analyzer/modified_qdma_driver/driver/src/qdma-pf.mod 
