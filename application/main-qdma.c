@@ -62,7 +62,7 @@ void gracefulExit(int sig) {
     }
 
     printf("Exiting...\n");
-    exit(0);
+    // exit(0);
 }
 
 // Helper function to get the current timestamp as a string
