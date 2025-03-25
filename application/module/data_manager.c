@@ -49,8 +49,8 @@ int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **
 		}
 	}
 
-	// if the data didn't end with a separator, drop the last token
-	if (last_sep != buffer_len) {
+	// if the data didn't end with a separator and
+	if (last_sep != buffer_len && !(buffer_len - 1 == last_sep && buffer[buffer_len] == '\0')) {
 		printf("Buffer does not end with a separator\n");
 		printf("Dropped the last token\n");
 	}
