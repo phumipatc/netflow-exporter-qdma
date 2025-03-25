@@ -18,7 +18,7 @@
 /*
     Constants
 */
-#define MAX_RECORDS 512
+#define MAX_RECORDS 524288
 #define MAX_RECORDS_SIZE 2048
 #define MAX_DATA_SIZE MAX_RECORDS * MAX_RECORDS_SIZE
 
@@ -88,14 +88,18 @@ void* processNormalData(void* programArgs) {
     char normalDirPath[256];
     char separator[] = {0x0D, 0x0A};
     char timestamp[32];
-    char tokenAddress[MAX_RECORDS][MAX_RECORDS_SIZE];
-    char **tokens = (char **)tokenAddress;
-    char writingBuffer[MAX_DATA_SIZE];
+    char *tokenAddress = malloc(MAX_DATA_SIZE * sizeof(char ));
+    char **tokens = malloc(MAX_RECORDS * sizeof(char *));
+    char *writingBuffer = malloc(MAX_RECORDS * MAX_RECORDS_SIZE);
 
     int data_len;
     int recordCount;
     int numTokens;
     int ret;
+
+    for(int i = 0; i < MAX_RECORDS; i++) {
+        tokens[i] = tokenAddress + i * MAX_RECORDS_SIZE;
+    }
 
     if (args->verbose) {
         printf("Normal data processing thread started\n");
@@ -171,6 +175,10 @@ void* processNormalData(void* programArgs) {
         pthread_mutex_unlock(&normalDataMutex);
     }
 
+    free(tokenAddress);
+    free(tokens);
+    free(writingBuffer);
+
     return NULL;
 }
 
@@ -185,7 +193,7 @@ int main(int argc, char* argv[]) {
     int mock_signal = 0;
     int ret;
 
-    unsigned char buffer[MAX_DATA_SIZE];
+    unsigned char *buffer = malloc(MAX_DATA_SIZE);
 	
     char qdmaDevPath[256];
 
@@ -309,6 +317,9 @@ int main(int argc, char* argv[]) {
     }
 
     pthread_join(normalDataProcessingThread, NULL);
+
+    free(buffer);
+
     gracefulExit(0);
 
     return 0;

@@ -40,8 +40,6 @@ int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **
 
 	for (int i = 0; i < buffer_len; ++i) {
 		if (strncmp(buffer + i, separator, sep_len) == 0) {
-			free(tokens[*numTokens]);
-			tokens[*numTokens] = malloc(i - last_sep + sep_len + 1);
 			strncpy(tokens[*numTokens], buffer + last_sep, i - last_sep + sep_len);
 			tokens[*numTokens][i - last_sep + sep_len] = '\0';
 			++(*numTokens);
