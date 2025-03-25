@@ -70,8 +70,17 @@ int extractNormalData(normal_data_t *data, char *buffer, int len) {
 	size_t i = 0;
 
 	// TODO: Extract the fields from the buffer and store them in the data structure
+	EXTRACT_FIELD(uint16_t, data, count, normal_field_sizes);
 	EXTRACT_FIELD(uint32_t, data, srcaddr, normal_field_sizes);
 	EXTRACT_FIELD(uint32_t, data, dstaddr, normal_field_sizes);
+	EXTRACT_FIELD(uint32_t, data, nexthop, normal_field_sizes);
+	EXTRACT_FIELD(uint32_t, data, dPkts, normal_field_sizes);
+	EXTRACT_FIELD(uint32_t, data, dOctets, normal_field_sizes);
+	EXTRACT_FIELD(uint32_t, data, srcport, normal_field_sizes);
+	EXTRACT_FIELD(uint32_t, data, dstport, normal_field_sizes);
+	EXTRACT_FIELD(uint8_t, data, prot, normal_field_sizes);
+	EXTRACT_FIELD(uint8_t, data, tos, normal_field_sizes);
+	EXTRACT_FIELD(uint16_t, data, padding, normal_field_sizes);
 
 	return 0;
 }
@@ -170,9 +179,18 @@ int convertNormalDataToCSV(normal_data_t *data, char *buffer) {
 	char newline[] = "\n";
 
 	// TODO: Convert the data structure to a CSV string and store it in the buffer
+	offset += toString(data->count, buffer + offset, comma);
 	offset += toString(data->srcaddr, buffer + offset, comma);
-	offset += toString(data->dstaddr, buffer + offset, newline);
-	
+	offset += toString(data->dstaddr, buffer + offset, comma);
+	offset += toString(data->nexthop, buffer + offset, comma);
+	offset += toString(data->dPkts, buffer + offset, comma);
+	offset += toString(data->dOctets, buffer + offset, comma);
+	offset += toString(data->srcport, buffer + offset, comma);
+	offset += toString(data->dstport, buffer + offset, comma);
+	offset += toString(data->prot, buffer + offset, comma);
+	offset += toString(data->tos, buffer + offset, comma);
+	offset += toString(data->padding, buffer + offset, newline);
+
 	return offset;
 }
 
@@ -185,7 +203,7 @@ int convertArrayOfNormalDataToCSV(normal_data_t *data, int numRecords, char *buf
 	int offset = 0;
 
 	// Add CSV column headers
-	offset += sprintf(buffer + offset, "srcaddr,dstaddr\n");
+	offset += sprintf(buffer + offset, "count,srcaddr,dstaddr,nexthop,dPkts,dOctets,srcport,dstport,prot,tos,padding\n");
 
 	for (int i = 0; i < numRecords; ++i) {
 		offset += convertNormalDataToCSV(data + i, buffer + offset);

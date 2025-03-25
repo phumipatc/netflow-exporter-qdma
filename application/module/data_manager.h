@@ -5,12 +5,22 @@
 
 typedef struct {
 	// TODO: Define the structure of the normal data
+	// count, srcaddr, dstaddr, nexthop, dPkts, dOctets, srcport, dscport, prot, tos
+	uint16_t	count;
 	uint32_t	srcaddr;
 	uint32_t	dstaddr;
+	uint32_t	nexthop;
+	uint32_t	dPkts;
+	uint32_t	dOctets;
+	uint16_t	srcport;
+	uint16_t	dstport;
+	uint8_t		prot;
+	uint8_t		tos;
+	uint16_t	padding;
 } normal_data_t;
 
 static const uint8_t normal_field_sizes[] = {
-	32, 32
+	16, 32, 32, 32, 32, 32, 16, 16, 8, 8, 16
 };
 
 typedef struct {
