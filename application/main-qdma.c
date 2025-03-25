@@ -15,15 +15,22 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+/*
+    Constants
+*/
+#define MAX_RECORDS 512
+#define MAX_RECORDS_SIZE 2048
+#define MAX_DATA_SIZE MAX_RECORDS * MAX_RECORDS_SIZE
+
 /* 
     Shared variables between main thread and data processing thread
 */
 volatile int shouldExit = 0;
 volatile int isNormalDataReady = 0;
 
-int sharedNumTokens = 0;
+int sharedBufferLength = 0;
 
-char sharedTokens[512][2048];
+char sharedBuffer[MAX_DATA_SIZE];
 
 pthread_mutex_t normalDataMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t normalDataCond = PTHREAD_COND_INITIALIZER;
@@ -79,11 +86,13 @@ void* processNormalData(void* programArgs) {
 
     char filePath[256];
     char normalDirPath[256];
+    char separator[] = {0x0D, 0x0A};
     char timestamp[32];
-    char writingBuffer[2048 * 512];
+    char tokenAddress[MAX_RECORDS][MAX_RECORDS_SIZE];
+    char **tokens = (char **)tokenAddress;
+    char writingBuffer[MAX_DATA_SIZE];
 
-    char** tokens = (char**)sharedTokens;
-
+    int data_len;
     int recordCount;
     int numTokens;
     int ret;
@@ -112,10 +121,19 @@ void* processNormalData(void* programArgs) {
             break;
         }
 
-        numTokens = sharedNumTokens;
+        data_len = sharedBufferLength;
 
         if (args->verbose) {
-            printf("Normal data processing thread processing %d tokens\n", numTokens);
+            printf("Normal data processing thread processing data of length %d\n", data_len);
+        }
+
+        // the separator is array of 2 bytes, 0x0D and 0x0A
+        ret = tokenizeData(sharedBuffer, data_len, separator, tokens, &numTokens);
+        if (ret < 0) {
+            printf("Error in tokenizing data with ret = %d\n", ret);
+            continue;
+        } else if(args->verbose) {
+            printf("Tokenized data into %d tokens\n", numTokens);
         }
 
         recordCount = 0; // Reset record count for this batch
@@ -161,22 +179,15 @@ int main(int argc, char* argv[]) {
     program_args_t args;
 
     ioctl_c2h_peek_data_t c2h_peek_data;
-    normal_data_t normal_data_array[512];
 
     int data_len;
     int mock_datalen = 0;
     int mock_signal = 0;
-    int numTokens;
-    int recordCount;
     int ret;
 
-    unsigned char buffer[512 * 2048]; // Buffer for multiple records
-
+    unsigned char buffer[MAX_DATA_SIZE];
 	
     char qdmaDevPath[256];
-    char separator[] = {0x0D, 0x0A};
-    char token_address[512][2048]; // Global token address for tokenizing data
-    char **tokens = (char **)token_address;
 
     // Parse command-line arguments
     parseArguments(argc, argv, &args);
@@ -279,17 +290,9 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            // the separator is array of 2 bytes, 0x0D and 0x0A
-            ret = tokenizeData(buffer, separator, tokens, &numTokens);
-            if (ret < 0) {
-                printf("Error in tokenizing data with ret = %d\n", ret);
-                continue;
-            } else if(args.verbose) {
-                printf("Tokenized data into %d tokens\n", numTokens);
-            }
             pthread_mutex_lock(&normalDataMutex);
-            memcpy(sharedTokens, tokens, sizeof(sharedTokens));
-            sharedNumTokens = numTokens;
+            memcpy(sharedBuffer, buffer, data_len);
+            sharedBufferLength = data_len;
             isNormalDataReady = 1;
             pthread_cond_signal(&normalDataCond);
             pthread_mutex_unlock(&normalDataMutex);

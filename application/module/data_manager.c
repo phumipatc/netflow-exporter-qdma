@@ -24,13 +24,12 @@ int toString(unsigned int value, char *buffer, char *optional) {
 	return sprintf(buffer, "%u%s", value, optional);
 }
 
-int tokenizeData(unsigned char *buffer, char *separator, char **tokens, int *numTokens) {
-	if (!buffer || !separator || !tokens || !numTokens) {
+int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **tokens, int *numTokens) {
+	if (!buffer || buffer_len < 0 || !separator || !tokens || !numTokens) {
 		fprintf(stderr, "Invalid arguments\n");
 		return -1;
 	}
 
-	int buffer_len = strlen(buffer);
 	int sep_len = strlen(separator);
 	int last_sep = 0;
 

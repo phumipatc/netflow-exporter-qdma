@@ -72,7 +72,7 @@ typedef struct {
 	netflow_flow_record_t records[32];
 } full_netflow_packet_t;
 
-int tokenizeData(unsigned char *buffer, char *separator, char **tokens, int *numTokens);
+int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **tokens, int *numTokens);
 
 int extractNormalData(normal_data_t *data, char *buffer, int len);
 
