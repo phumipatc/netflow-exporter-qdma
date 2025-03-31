@@ -30,7 +30,7 @@ int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **
 		return -1;
 	}
 
-	int sep_len = strlen(separator);
+	int sep_len = 2;
 	int last_sep = 0;
 
 	// if there exists a separator in the buffer
@@ -39,9 +39,9 @@ int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **
 	// and so on
 
 	for (int i = 0; i < buffer_len; ++i) {
-		if (strncmp(buffer + i, separator, sep_len) == 0) {
+		if (memcmp(buffer + i, separator, sep_len) == 0) {
 			// printf("Found separator at index %d\n", i);
-			strncpy(tokens[*numTokens], buffer + last_sep, i - last_sep + sep_len);
+			memcpy(tokens[*numTokens], buffer + last_sep, i - last_sep + sep_len);
 			tokens[*numTokens][i - last_sep + sep_len] = '\0';
 			++(*numTokens);
 			last_sep = i + sep_len;
@@ -50,6 +50,7 @@ int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **
 
 	// if the data didn't end with a separator
 	// if (last_sep != buffer_len) {
+	// 	printf("Last separator at index %d\n", last_sep);
 	// 	printf("Buffer does not end with a separator\n");
 	// 	printf("Dropped the last token\n");
 	// }

@@ -18,8 +18,8 @@
 /*
     Constants
 */
-#define MAX_RECORDS 524288
-#define MAX_RECORDS_SIZE 2048
+#define MAX_RECORDS 16777216
+#define MAX_RECORDS_SIZE 64
 #define MAX_DATA_SIZE MAX_RECORDS * MAX_RECORDS_SIZE
 
 #define SEED 0xA3F7C92D
@@ -93,7 +93,7 @@ void ensureDirectoryExists(const char* dirPath) {
 
 void* processNormalData(void* programArgs) {
     program_args_t* args = (program_args_t*)programArgs;
-    normal_data_t normal_data_array[512];
+    normal_data_t *normal_data_array = malloc(MAX_RECORDS * sizeof(normal_data_t));
 
     char filePath[256];
     char normalDirPath[256];
@@ -137,6 +137,7 @@ void* processNormalData(void* programArgs) {
         }
 
         data_len = sharedBufferLength;
+        numTokens = 0;
 
         if (args->verbose) {
             printf("Normal data processing thread processing data of length %d\n", data_len);
@@ -189,6 +190,7 @@ void* processNormalData(void* programArgs) {
     free(tokenAddress);
     free(tokens);
     free(writingBuffer);
+    free(normal_data_array);
 
     return NULL;
 }
@@ -204,7 +206,10 @@ int main(int argc, char* argv[]) {
     int mock_datalen = 0;
     int mock_signal = 0;
     int ret;
-    int total_data_len;
+    int total_data_len = 0;
+
+    clock_t start, end;
+    double elasped;
 
     unsigned char *buffer = malloc(MAX_DATA_SIZE);
 	
@@ -240,7 +245,7 @@ int main(int argc, char* argv[]) {
             perror("Error opening mock data file");
             return -1;
         }
-        mock_datalen = lseek(mock_fd, 0, SEEK_END) + 1;
+        mock_datalen = lseek(mock_fd, 0, SEEK_END);
         lseek(mock_fd, 0, SEEK_SET);
     } else {
         // Initialize QDMA queue
@@ -248,10 +253,10 @@ int main(int argc, char* argv[]) {
             printf("Initializing queue with device ID = %d, queue ID = %d\n", device_id_num, queue_id_num);
         }
         ret = queue_init(device_id_num, queue_id_num);
-        if (ret < 0) {
-            printf("Error in initializing queue with ret = %d\n", ret);
-            return ret;
-        }
+        // if (ret < 0) {
+        //     printf("Error in initializing queue with ret = %d\n", ret);
+        //     return ret;
+        // }
 
         // Open QDMA device
         // qdmaDevPath is concatenatation of "/dev/qdma" and device_id and "-ST-" and queue_id
@@ -285,9 +290,9 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    start = clock();
     // Main processing loop
     while (!shouldExit) {
-        clock_t start = clock();
 
         if (!args.mockBool) {
             ret = peek_qdma_data_len(fd, &c2h_peek_data);
@@ -299,19 +304,19 @@ int main(int argc, char* argv[]) {
             }
         } else {
             // wait for mock signal
-            printf("Waiting for mock signal\n");
-            scanf("%d", &mock_signal);
-            if(mock_signal != 1){
-                break;
-            }
+            // printf("Waiting for mock signal\n");
+            // scanf("%d", &mock_signal);
+            // if(mock_signal != 1){
+            //     break;
+            // }
         }
 
         if (c2h_peek_data.data_len > 0 || mock_datalen > 0) {
             data_len = c2h_peek_data.data_len | mock_datalen;
             if(!args.mockBool) {
-                if(args.verbose) {
-                    printf("Reading data from QDMA device\n");
-                }
+                // if(args.verbose) {
+                //     printf("Reading data from QDMA device\n");
+                // }
                 ret = read_qdma_binary(fd, buffer+total_data_len, data_len);
                 if (ret < 0) {
                     printf("Error in reading data with ret = %d\n", ret);
@@ -320,22 +325,26 @@ int main(int argc, char* argv[]) {
             } else {
                 // Mock data
                 // read data from file ./mock/normal.txt
-                if (args.verbose) {
-                    printf("Reading data from mock file\n");
-                }
+                // if (args.verbose) {
+                //     printf("Reading data from mock file\n");
+                // }
                 ret = read(mock_fd, buffer+total_data_len, data_len);
                 if (ret < 0) {
                     printf("Error in reading mock data with ret = %d\n", ret);
                     break;
                 }
+                lseek(mock_fd, 0, SEEK_SET);
             }
+            // memcpy(sharedBuffer+total_data_len, buffer+total_data_len, data_len);
             total_data_len += data_len;
         }
 
-        clock_t elasped = clock() - start;
+        end = clock();
+        elasped = (double)(end - start) / CLOCKS_PER_SEC;
         // if elasped time is more than 1 second, trigger signal
-        if (elasped > CLOCKS_PER_SEC) {
+        if (elasped > 1) {
             if(args.verbose) {
+                printf("Elasped time: %lf\n", elasped);
                 printf("Triggering signal\n");
             }
             pthread_mutex_lock(&normalDataMutex);
@@ -345,6 +354,7 @@ int main(int argc, char* argv[]) {
             pthread_cond_signal(&normalDataCond);
             pthread_mutex_unlock(&normalDataMutex);
             total_data_len = 0;
+            start = clock();
         }
         
     }
@@ -353,7 +363,9 @@ int main(int argc, char* argv[]) {
 
     free(buffer);
 
-    gracefulExit(0);
+    if(!shouldExit) {
+        gracefulExit(0);
+    }
 
     return 0;
 }
