@@ -20,7 +20,7 @@ void parseArguments(int argc, char* argv[], program_args_t* args) {
     args->verbose = 0;
     args->helpBool = 0;
     args->mockBool = 0;
-    strncpy(args->device_id, "1000", sizeof(args->device_id));
+    strncpy(args->device_id, "01000", sizeof(args->device_id));
     strncpy(args->queue_id, "32", sizeof(args->queue_id));
     strncpy(args->dir_path, "/media/hoshino/nvme/netflow", sizeof(args->dir_path));
 

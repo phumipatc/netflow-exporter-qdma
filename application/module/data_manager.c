@@ -40,6 +40,7 @@ int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **
 
 	for (int i = 0; i < buffer_len; ++i) {
 		if (strncmp(buffer + i, separator, sep_len) == 0) {
+			// printf("Found separator at index %d\n", i);
 			strncpy(tokens[*numTokens], buffer + last_sep, i - last_sep + sep_len);
 			tokens[*numTokens][i - last_sep + sep_len] = '\0';
 			++(*numTokens);
@@ -47,11 +48,11 @@ int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **
 		}
 	}
 
-	// if the data didn't end with a separator and
-	if (last_sep != buffer_len && !(buffer_len - 1 == last_sep && buffer[buffer_len] == '\0')) {
-		printf("Buffer does not end with a separator\n");
-		printf("Dropped the last token\n");
-	}
+	// if the data didn't end with a separator
+	// if (last_sep != buffer_len) {
+	// 	printf("Buffer does not end with a separator\n");
+	// 	printf("Dropped the last token\n");
+	// }
 
 	return 0;
 

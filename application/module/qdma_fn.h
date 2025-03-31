@@ -13,6 +13,10 @@ typedef struct {
 // Define the IOCTL command values (ensure they match kernel module)
 #define QDMA_CDEV_IOCTL_C2H_PEEK 1
 
+int read_register(unsigned int Device_id, unsigned int Address, unsigned int *ReadValuePtr);
+
+int write_register(unsigned int Device_id, unsigned int Address, unsigned int WriteValue);
+
 int peek_qdma_data_len(int fd, ioctl_c2h_peek_data_t *c2h_peek_data);
 
 int prepare_q_add(struct xcmd_info *xcmd, unsigned int device_id, unsigned int queue_id, unsigned int queue_mode, unsigned int queue_dir);

@@ -22,6 +22,8 @@
 #define MAX_RECORDS_SIZE 2048
 #define MAX_DATA_SIZE MAX_RECORDS * MAX_RECORDS_SIZE
 
+#define SEED 0xA3F7C92D
+
 /* 
     Shared variables between main thread and data processing thread
 */
@@ -41,11 +43,20 @@ pthread_cond_t normalDataCond = PTHREAD_COND_INITIALIZER;
 int fd; // Global file descriptor for graceful exit
 int mock_fd; // Global file descriptor for mock data
 
+unsigned int device_id_num;
+
 // Signal handler
 void gracefulExit(int sig) {
+    int ret;
+
     printf("Caught signal %d\n", sig);
 
     shouldExit = 1;
+
+    ret = write_register(device_id_num, 0x8, 0x0);
+    if (ret < 0) {
+        printf("Error in disabling P4 engine with ret = %d\n", ret);
+    }
 
     pthread_mutex_lock(&normalDataMutex);
     pthread_cond_signal(&normalDataCond);
@@ -188,10 +199,12 @@ int main(int argc, char* argv[]) {
 
     ioctl_c2h_peek_data_t c2h_peek_data;
 
+    int current_seed = 0;
     int data_len;
     int mock_datalen = 0;
     int mock_signal = 0;
     int ret;
+    int total_data_len;
 
     unsigned char *buffer = malloc(MAX_DATA_SIZE);
 	
@@ -205,7 +218,7 @@ int main(int argc, char* argv[]) {
 	}
 
     // Convert device and queue IDs to numeric values
-    unsigned int device_id_num = strtoul(args.device_id, NULL, 16);
+    device_id_num = strtoul(args.device_id, NULL, 16);
     unsigned int queue_id_num = strtoul(args.queue_id, NULL, 10);
 
     // Signal handling
@@ -251,6 +264,25 @@ int main(int argc, char* argv[]) {
             perror("Error opening QDMA device");
             return -1;
         }
+
+        ret = read_register(device_id_num, 0x0, &current_seed);
+        if (ret < 0) {
+            printf("Error in reading FPGA seed with ret = %d\n", ret);
+            gracefulExit(0);
+        }
+        if (args.verbose) {
+            printf("Current seed: %d\n", current_seed);
+        }
+        if(current_seed != SEED) {
+            printf("Seed mismatch. Expected %d, got %d\n", SEED, current_seed);
+            gracefulExit(0);
+        }
+
+        ret = write_register(device_id_num, 0x8, 0x1);
+        if (ret < 0) {
+            printf("Error in enabling P4 engine with ret = %d\n", ret);
+            return ret;
+        }
     }
 
     // Main processing loop
@@ -280,7 +312,7 @@ int main(int argc, char* argv[]) {
                 if(args.verbose) {
                     printf("Reading data from QDMA device\n");
                 }
-                ret = read_qdma_binary(fd, buffer, data_len);
+                ret = read_qdma_binary(fd, buffer+total_data_len, data_len);
                 if (ret < 0) {
                     printf("Error in reading data with ret = %d\n", ret);
                     break;
@@ -291,29 +323,30 @@ int main(int argc, char* argv[]) {
                 if (args.verbose) {
                     printf("Reading data from mock file\n");
                 }
-                ret = read(mock_fd, buffer, data_len);
+                ret = read(mock_fd, buffer+total_data_len, data_len);
                 if (ret < 0) {
                     printf("Error in reading mock data with ret = %d\n", ret);
                     break;
                 }
             }
-
-            pthread_mutex_lock(&normalDataMutex);
-            memcpy(sharedBuffer, buffer, data_len);
-            sharedBufferLength = data_len;
-            isNormalDataReady = 1;
-            pthread_cond_signal(&normalDataCond);
-            pthread_mutex_unlock(&normalDataMutex);
+            total_data_len += data_len;
         }
 
         clock_t elasped = clock() - start;
-        double sleepTime = 1.0 - ((double)elasped / CLOCKS_PER_SEC);
-        if (sleepTime > 0) {
+        // if elasped time is more than 1 second, trigger signal
+        if (elasped > CLOCKS_PER_SEC) {
             if(args.verbose) {
-                printf("Sleeping for %f seconds\n", sleepTime);
+                printf("Triggering signal\n");
             }
-            usleep(sleepTime * 1e6);
+            pthread_mutex_lock(&normalDataMutex);
+            memcpy(sharedBuffer, buffer, total_data_len);
+            sharedBufferLength = total_data_len;
+            isNormalDataReady = 1;
+            pthread_cond_signal(&normalDataCond);
+            pthread_mutex_unlock(&normalDataMutex);
+            total_data_len = 0;
         }
+        
     }
 
     pthread_join(normalDataProcessingThread, NULL);
