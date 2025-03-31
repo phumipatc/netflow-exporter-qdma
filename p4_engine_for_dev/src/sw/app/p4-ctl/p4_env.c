@@ -5,6 +5,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#define OFFSET 0x200000
+
 static const char * XilVitisNetP4TableModeStrings[XIL_VITIS_NET_P4_NUM_RETURN_CODES] =
 {
 	"XIL_VITIS_NET_P4_TABLE_MODE_BCAM",
@@ -47,7 +49,7 @@ XilVitisNetP4ReturnType read_register(XilVitisNetP4EnvIf *EnvIfPtr, XilVitisNetP
 	regcmd->bar = 2;
 	regcmd->sflags |= XCMD_REG_F_BAR_SET;
 
-	regcmd->reg = (unsigned int )Address;
+	regcmd->reg = (unsigned int )Address + OFFSET;
 	regcmd->sflags |= XCMD_REG_F_REG_SET;
 
 	// printf("Reading register %x\n", regcmd->reg);
@@ -123,7 +125,7 @@ XilVitisNetP4ReturnType write_register(XilVitisNetP4EnvIf *EnvIfPtr, XilVitisNet
 	regcmd->bar = 2;
 	regcmd->sflags |= XCMD_REG_F_BAR_SET;
 
-	regcmd->reg = (unsigned int )Address;
+	regcmd->reg = (unsigned int )Address + OFFSET;
 	regcmd->sflags |= XCMD_REG_F_REG_SET;
 
 	regcmd->val = WriteValue;
