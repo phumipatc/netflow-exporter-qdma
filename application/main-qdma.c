@@ -152,6 +152,8 @@ void* processNormalData(void* programArgs) {
             printf("Tokenized data into %d tokens\n", numTokens);
         }
 
+        pthread_mutex_unlock(&normalDataMutex);
+
         recordCount = 0; // Reset record count for this batch
         for (int i = 0; i < numTokens; ++i) {
             ret = extractNormalData(&normal_data_array[recordCount], tokens[i], strlen(tokens[i]));
@@ -184,7 +186,7 @@ void* processNormalData(void* programArgs) {
         }
 
         isNormalDataReady = 0;
-        pthread_mutex_unlock(&normalDataMutex);
+        // pthread_mutex_unlock(&normalDataMutex);
     }
 
     free(tokenAddress);
@@ -335,20 +337,22 @@ int main(int argc, char* argv[]) {
                 }
                 lseek(mock_fd, 0, SEEK_SET);
             }
-            // memcpy(sharedBuffer+total_data_len, buffer+total_data_len, data_len);
+            pthread_mutex_lock(&normalDataMutex);
+            memcpy(sharedBuffer+total_data_len, buffer+total_data_len, data_len);
+            pthread_mutex_unlock(&normalDataMutex);
             total_data_len += data_len;
         }
 
         end = clock();
         elasped = (double)(end - start) / CLOCKS_PER_SEC;
         // if elasped time is more than 1 second, trigger signal
-        if (elasped > 1) {
+        if (isNormalDataReady == 0 && elasped > 1) {
             if(args.verbose) {
                 printf("Elasped time: %lf\n", elasped);
                 printf("Triggering signal\n");
             }
             pthread_mutex_lock(&normalDataMutex);
-            memcpy(sharedBuffer, buffer, total_data_len);
+            // memcpy(sharedBuffer, buffer, total_data_len);
             sharedBufferLength = total_data_len;
             isNormalDataReady = 1;
             pthread_cond_signal(&normalDataCond);
