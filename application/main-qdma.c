@@ -5,10 +5,10 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/time.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <time.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -18,8 +18,9 @@
 /*
     Constants
 */
-#define MAX_RECORDS 16777216
-#define MAX_RECORDS_SIZE 64
+
+#define MAX_RECORDS 33554432
+#define MAX_RECORDS_SIZE 32
 #define MAX_DATA_SIZE MAX_RECORDS * MAX_RECORDS_SIZE
 
 #define SEED 0xA3F7C92D
@@ -210,7 +211,7 @@ int main(int argc, char* argv[]) {
     int ret;
     int total_data_len = 0;
 
-    clock_t start, end;
+    struct timespec start, end;
     double elasped;
 
     unsigned char *buffer = malloc(MAX_DATA_SIZE);
@@ -231,6 +232,7 @@ int main(int argc, char* argv[]) {
     // Signal handling
     signal(SIGINT, gracefulExit);
     signal(SIGTERM, gracefulExit);
+    signal(SIGSEGV, gracefulExit);
 
     pthread_t normalDataProcessingThread;
     pthread_create(&normalDataProcessingThread, NULL, processNormalData, &args);
@@ -292,7 +294,8 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    start = clock();
+    // start = clock();
+    clock_gettime(CLOCK_MONOTONIC, &start);
     // Main processing loop
     while (!shouldExit) {
 
@@ -343,8 +346,8 @@ int main(int argc, char* argv[]) {
             total_data_len += data_len;
         }
 
-        end = clock();
-        elasped = (double)(end - start) / CLOCKS_PER_SEC;
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        elasped = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
         // if elasped time is more than 1 second, trigger signal
         if (isNormalDataReady == 0 && elasped > 1) {
             if(args.verbose) {
@@ -358,7 +361,7 @@ int main(int argc, char* argv[]) {
             pthread_cond_signal(&normalDataCond);
             pthread_mutex_unlock(&normalDataMutex);
             total_data_len = 0;
-            start = clock();
+            clock_gettime(CLOCK_MONOTONIC, &start);
         }
         
     }
