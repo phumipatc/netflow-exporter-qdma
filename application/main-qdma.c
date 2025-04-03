@@ -5,7 +5,6 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <linux/time.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -18,180 +17,297 @@
 /*
     Constants
 */
-
+#define BUFFER_THRESHOLD 0.9
 #define MAX_RECORDS 33554432
 #define MAX_RECORDS_SIZE 32
-#define MAX_DATA_SIZE MAX_RECORDS * MAX_RECORDS_SIZE
-
+#define MAX_DATA_SIZE (MAX_RECORDS * MAX_RECORDS_SIZE)
+#define NODE_COUNT 8
 #define SEED 0xA3F7C92D
 
-/* 
-    Shared variables between main thread and data processing thread
-*/
-volatile int shouldExit = 0;
-volatile int isNormalDataReady = 0;
-
-int sharedBufferLength = 0;
-
-char sharedBuffer[MAX_DATA_SIZE];
-
-pthread_mutex_t normalDataMutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t normalDataCond = PTHREAD_COND_INITIALIZER;
-
 /*
-    Global variables for graceful exit
+    Data structures
 */
-int fd; // Global file descriptor for graceful exit
-int mock_fd; // Global file descriptor for mock data
+// circular linked list node
+typedef struct DataNode {
+    char data[MAX_DATA_SIZE];
+    int length;
+    pthread_mutex_t mutex;
+    struct DataNode* next;
+} DataNode;
 
+// Circular buffer structure
+typedef struct {
+    DataNode* producer_ptr;
+    DataNode* consumer_ptr;
+    pthread_mutex_t producer_mutex;
+    pthread_mutex_t consumer_mutex;
+
+} CircularBuffer;
+
+volatile int shouldExit = 0;
+CircularBuffer queue;
+
+int fd, mock_fd;
 unsigned int device_id_num;
 
-// Signal handler
+time_t time_now;
+struct tm *tm_now;
+
 void gracefulExit(int sig) {
-    int ret;
-
     printf("Caught signal %d\n", sig);
-
     shouldExit = 1;
-
-    ret = write_register(device_id_num, 0x8, 0x0);
-    if (ret < 0) {
-        printf("Error in disabling P4 engine with ret = %d\n", ret);
-    }
-
-    pthread_mutex_lock(&normalDataMutex);
-    pthread_cond_signal(&normalDataCond);
-    pthread_mutex_unlock(&normalDataMutex);
-
-    if (fd >= 0) {
-        close(fd);
-        printf("File descriptor closed.\n");
-    }
-
-    if (mock_fd >= 0) {
-        close(mock_fd);
-        printf("Mock file descriptor closed.\n");
-    }
-
-    printf("Exiting...\n");
-    // exit(0);
 }
 
-// Helper function to get the current timestamp as a string
-void getCurrentTimestamp(char* buffer, size_t bufferSize) {
-    time_t now = time(NULL);
-    struct tm *t = localtime(&now);
-    strftime(buffer, bufferSize, "%Y%m%d_%H%M%S", t);
+/**
+ * initializeCircularQueue
+ * - Initializes the circular buffer with NODE_COUNT number of nodes
+*/
+void initializeCircularQueue() {
+    DataNode* head = NULL;
+    DataNode* prev = NULL;
+
+    for(int i=0;i<NODE_COUNT;i++) {
+        DataNode* node = (DataNode*)malloc(sizeof(DataNode));
+        memset(node->data, 0, MAX_DATA_SIZE);
+        node->length = 0;
+        pthread_mutex_init(&node->mutex, NULL);
+        node->next = NULL;
+
+        if (!head) {
+            head = node;
+        } else {
+            prev->next = node;
+        }
+        prev = node;
+    }
+    prev->next = head;
+
+    queue.producer_ptr = head->next;
+    queue.consumer_ptr = head;
+
+    pthread_mutex_init(&queue.producer_mutex, NULL);
+    pthread_mutex_init(&queue.consumer_mutex, NULL);
 }
 
-// Helper function to create directory if it doesn't exist
-void ensureDirectoryExists(const char* dirPath) {
-    if (mkdir(dirPath, 0777) != 0 && errno != EEXIST) {
-        perror("Error creating directory");
-        exit(EXIT_FAILURE);
+/**
+ * destroyCircularQueue
+ * - Frees the memory allocated for the circular buffer
+*/
+void destroyCircularQueue() {
+    DataNode* head = queue.producer_ptr;
+    DataNode* current = head;
+    DataNode* next = head->next;
+
+    while(next != head) {
+        pthread_mutex_destroy(&(current->mutex));
+        free(current);
+        current = next;
+        next = next->next;
+    }
+    pthread_mutex_destroy(&(current->mutex));
+    free(current);
+}
+
+/**
+ * moveProducerPtr
+ * - Moves the producer pointer to the next node in the circular buffer
+ * - Assumes that the producer mutex is locked
+*/
+void moveProducerPtr() {
+    queue.producer_ptr = queue.producer_ptr->next;
+}
+
+/**
+ * moveConsumerPtr
+ * - Moves the consumer pointer to the next node in the circular buffer
+ * - Assumes that the consumer mutex is locked
+*/
+void moveConsumerPtr() {
+    queue.consumer_ptr = queue.consumer_ptr->next;
+}
+
+/**
+ * getNextNodeToConsume
+ * - If the consumer has not caught up with the producer, moves the consumer pointer to the next node in the circular buffer
+ * Returns:
+ * - 0 if the consumer has caught up with the producer
+ * - 1 if the consumer has not caught up with the producer, and the consumer pointer has been moved
+*/
+int getNextNodeToConsume() {
+    pthread_mutex_lock(&queue.consumer_mutex);
+    pthread_mutex_lock(&queue.producer_mutex);
+
+    // check if consumer has caught up with producer
+    if(queue.consumer_ptr->next == queue.producer_ptr) {
+        pthread_mutex_unlock(&queue.consumer_mutex);
+        pthread_mutex_unlock(&queue.producer_mutex);
+        return 0;
+    }
+
+    moveConsumerPtr();
+
+    pthread_mutex_unlock(&queue.producer_mutex);
+    pthread_mutex_unlock(&queue.consumer_mutex);
+
+    return 1;
+}
+
+/**
+ * getNextNodeToProduce
+ * - If the producer has not caught up with the consumer, moves the producer pointer to the next node in the circular buffer
+ * Returns:
+ * - 0 if the next node is the same as the consumer node
+ * - 1 if the next node is different from the consumer node, and the producer pointer has been moved
+*/
+int getNextNodeToProduce() {
+    pthread_mutex_lock(&queue.consumer_mutex);
+    pthread_mutex_lock(&queue.producer_mutex);
+
+    // check if producer has caught up with consumer
+    if(queue.producer_ptr->next == queue.consumer_ptr) {
+        return 0;
+    }
+
+    moveProducerPtr();
+
+    pthread_mutex_unlock(&queue.producer_mutex);
+    pthread_mutex_unlock(&queue.consumer_mutex);
+
+    return 1;
+}
+
+/** getCurrentTimestamp
+ * - Gets the current timestamp in the format: YYYYMMDD_HHMMSS
+*/
+void getCurrentTimestamp(char* timestamp, int size) {
+    time(&time_now);
+    tm_now = localtime(&time_now);
+    strftime(timestamp, size, "%Y%m%d_%H%M%S", tm_now);
+}
+
+/**
+ * ensureDirectoryExists
+ * - Ensures that the directory at the given path exists
+ * - If the directory does not exist, creates the directory
+*/
+void ensureDirectoryExists(const char* path) {
+    if(mkdir(path, 0777) < 0) {
+        if(errno != EEXIST) {
+            printf("Failed to create directory: %s\n", path);
+            gracefulExit(0);
+        }
     }
 }
 
+/**
+ * processNormalData
+ * - Thread function to process normal data
+ * - Tokenizes the raw data
+ * - Extracts normal data from the tokens
+ * - Writes the normal data to a CSV file
+*/
 void* processNormalData(void* programArgs) {
     program_args_t* args = (program_args_t*)programArgs;
-    normal_data_t *normal_data_array = malloc(MAX_RECORDS * sizeof(normal_data_t));
 
-    char filePath[256];
     char normalDirPath[256];
+
+    char filePath[256], timestamp[32];
     char separator[] = {0x0D, 0x0A};
-    char timestamp[32];
-    char *tokenAddress = malloc(MAX_DATA_SIZE * sizeof(char ));
-    char **tokens = malloc(MAX_RECORDS * sizeof(char *));
-    char *writingBuffer = malloc(MAX_RECORDS * MAX_RECORDS_SIZE);
 
-    int data_len;
-    int recordCount;
-    int numTokens;
-    int ret;
+    char** tokens = (char**)malloc(MAX_RECORDS * sizeof(char*));
+    char* tokenBuffer = (char*)malloc(MAX_DATA_SIZE);
+    char* writingBuffer = (char*)malloc(MAX_DATA_SIZE);
 
-    for(int i = 0; i < MAX_RECORDS; i++) {
-        tokens[i] = tokenAddress + i * MAX_RECORDS_SIZE;
-    }
+    normal_data_t* normal_data_array = (normal_data_t*)malloc(MAX_RECORDS * sizeof(normal_data_t));
 
-    if (args->verbose) {
-        printf("Normal data processing thread started\n");
+    for(int i=0;i<MAX_RECORDS;i++) {
+        tokens[i] = tokenBuffer + i * MAX_RECORDS_SIZE;
     }
 
     snprintf(normalDirPath, sizeof(normalDirPath), "%s/normal", args->dir_path);
-
-    // Ensure directories exist
     ensureDirectoryExists(normalDirPath);
 
-    while(!shouldExit) {
-        pthread_mutex_lock(&normalDataMutex);
-
-        if(args->verbose) {
-            printf("Normal data processing thread waiting for signal\n");
-        }
-        while (!isNormalDataReady && !shouldExit) {
-            pthread_cond_wait(&normalDataCond, &normalDataMutex);
-        }
-
-        if (shouldExit) {
-            pthread_mutex_unlock(&normalDataMutex);
-            break;
-        }
-
-        data_len = sharedBufferLength;
-        numTokens = 0;
-
-        if (args->verbose) {
-            printf("Normal data processing thread processing data of length %d\n", data_len);
-        }
-
-        // the separator is array of 2 bytes, 0x0D and 0x0A
-        ret = tokenizeData(sharedBuffer, data_len, separator, tokens, &numTokens);
-        if (ret < 0) {
-            printf("Error in tokenizing data with ret = %d\n", ret);
-            continue;
-        } else if(args->verbose) {
-            printf("Tokenized data into %d tokens\n", numTokens);
-        }
-
-        pthread_mutex_unlock(&normalDataMutex);
-
-        recordCount = 0; // Reset record count for this batch
-        for (int i = 0; i < numTokens; ++i) {
-            ret = extractNormalData(&normal_data_array[recordCount], tokens[i], strlen(tokens[i]));
-            if (ret < 0) {
-                printf("Error in extracting normal data with ret = %d\n", ret);
-                continue;
-            }
-            recordCount++;
-        }
-
-        if (recordCount > 0) {
-            ret = convertArrayOfNormalDataToCSV(normal_data_array, recordCount, writingBuffer);
-            if (ret < 0) {
-                printf("Error in converting data to CSV\n");
-                continue;
-            }
-
-            getCurrentTimestamp(timestamp, sizeof(timestamp));
-            snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", normalDirPath, timestamp);
-
-            ret = writeToFile(filePath, writingBuffer, strlen(writingBuffer));
-            if (ret < 0) {
-                printf("Error in writing to file\n");
-                continue;
-            }
-
-            if (args->verbose) {
-                printf("Data written to file: %s\n", filePath);
-            }
-        }
-
-        isNormalDataReady = 0;
-        // pthread_mutex_unlock(&normalDataMutex);
+    if (!tokens || !tokenBuffer || !writingBuffer || !normal_data_array) {
+        printf("Failed to allocate memory for tokens, tokenBuffer, writingBuffer or normal_data_array\n");
+        gracefulExit(0);
+        goto normalProcessingCleanup;
     }
 
-    free(tokenAddress);
+    if(args->verbose) {
+        printf("Normal data processing thread started\n");
+    }
+
+    DataNode* consumer_node;
+    int numTokens = 0;
+    int recordCount = 0;
+    while(!shouldExit) {
+        if(getNextNodeToConsume()) {
+            shouldExit = 1;
+
+            pthread_mutex_lock(&queue.consumer_mutex);
+            consumer_node = queue.consumer_ptr;
+            pthread_mutex_unlock(&queue.consumer_mutex);
+
+            pthread_mutex_lock(&consumer_node->mutex);
+            if(consumer_node->length > 0) {
+                if(args->verbose) {
+                    printf("Processing %d bytes of data\n", consumer_node->length);
+                }
+
+                numTokens = 0;
+                if(tokenizeData(consumer_node->data, consumer_node->length, separator, tokens, &numTokens) < 0) {
+                    printf("Failed to tokenize data\n");
+                    goto write_completed;
+                } else if(args->verbose) {
+                    printf("Tokenized %d records\n", numTokens);
+                }
+
+                recordCount = 0;
+                for(int i=0;i<numTokens;i++) {
+                    if(extractNormalData(&normal_data_array[recordCount], tokens[i], strlen(tokens[i])) < 0) {
+                        printf("Failed to extract normal data\n");
+                        continue;
+                    }
+                    recordCount++;
+                }
+
+                if(recordCount > 0) {
+                    if(args->verbose) {
+                        printf("Extracted %d records\n", recordCount);
+                    }
+
+                    if(convertArrayOfNormalDataToCSV(normal_data_array, recordCount, writingBuffer) < 0) {
+                        printf("Failed to convert normal data to CSV\n");
+                        goto write_completed;
+                    }
+
+                    getCurrentTimestamp(timestamp, sizeof(timestamp));
+                    snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", normalDirPath, timestamp);
+
+                    if(writeToFile(filePath, writingBuffer, strlen(writingBuffer)) < 0) {
+                        printf("Failed to write normal data to file\n");
+                        goto write_completed;
+                    } else if(args->verbose) {
+                        printf("Wrote %d records to file: %s\n", recordCount, filePath);
+                    }
+                }
+            }
+            write_completed:
+            consumer_node->length = 0;
+            pthread_mutex_unlock(&consumer_node->mutex);
+        } else {
+            usleep(1000);
+        }
+    }
+
+    normalProcessingCleanup:
+
+    if(args->verbose) {
+        printf("Normal data processing thread exiting\n");
+    }
+
     free(tokens);
+    free(tokenBuffer);
     free(writingBuffer);
     free(normal_data_array);
 
@@ -199,179 +315,189 @@ void* processNormalData(void* programArgs) {
 }
 
 int main(int argc, char* argv[]) {
-    // Variable declarations
     program_args_t args;
-
-    ioctl_c2h_peek_data_t c2h_peek_data;
-
-    int current_seed = 0;
-    int data_len;
-    int mock_datalen = 0;
-    int mock_signal = 0;
-    int ret;
-    int total_data_len = 0;
-
-    struct timespec start, end;
-    double elasped;
-
-    unsigned char *buffer = malloc(MAX_DATA_SIZE);
-	
-    char qdmaDevPath[256];
-
-    // Parse command-line arguments
     parseArguments(argc, argv, &args);
 
-	if(args.helpBool) {
-		return 0;
-	}
+    if(args.helpBool) {
+        return 0;
+    }
 
-    // Convert device and queue IDs to numeric values
     device_id_num = strtoul(args.device_id, NULL, 16);
     unsigned int queue_id_num = strtoul(args.queue_id, NULL, 10);
+    int mock_datalen = 0;
 
-    // Signal handling
-    signal(SIGINT, gracefulExit);
-    signal(SIGTERM, gracefulExit);
-    signal(SIGSEGV, gracefulExit);
+    if(args.mockBool) {
+/**
+ * Initialize mock data file
+*/
+        printf("Opening mock data file\n");
+        printf("Skipping QDMA initialization\n");
 
-    pthread_t normalDataProcessingThread;
-    pthread_create(&normalDataProcessingThread, NULL, processNormalData, &args);
-
-    if (args.mockBool) {
-        if (args.verbose) {
-            printf("Opening mock data file\n");
-            printf("Skipping QDMA initialization\n");
-        }
-
-        // Open mock data file
-        mock_fd = open("./mock/normal.txt", O_RDWR | O_NONBLOCK);
-        if (mock_fd < 0) {
-            perror("Error opening mock data file");
+        mock_fd = open("./mock/normal.txt", O_RDONLY | O_NONBLOCK);
+        if(mock_fd < 0) {
+            printf("Failed to open mock data file\n");
             return -1;
         }
         mock_datalen = lseek(mock_fd, 0, SEEK_END);
         lseek(mock_fd, 0, SEEK_SET);
     } else {
-        // Initialize QDMA queue
+/**
+ * Initialize QDMA
+*/
         if (args.verbose) {
-            printf("Initializing queue with device ID = %d, queue ID = %d\n", device_id_num, queue_id_num);
+            printf("Initializing QDMA with device_id: %s, queue_id: %s\n", args.device_id, args.queue_id);
         }
-        ret = queue_init(device_id_num, queue_id_num);
-        // if (ret < 0) {
-        //     printf("Error in initializing queue with ret = %d\n", ret);
-        //     return ret;
-        // }
+        if(queue_init(device_id_num, queue_id_num) < 0) {
+            // printf("Failed to initialize QDMA\n");
+            // return -1;
+        }
 
-        // Open QDMA device
-        // qdmaDevPath is concatenatation of "/dev/qdma" and device_id and "-ST-" and queue_id
+        char qdmaDevPath[64];
         snprintf(qdmaDevPath, sizeof(qdmaDevPath), "/dev/qdma%s-ST-%s", args.device_id, args.queue_id);
+        
         if(args.verbose) {
             printf("Opening QDMA device: %s\n", qdmaDevPath);
         }
         fd = open(qdmaDevPath, O_RDWR | O_NONBLOCK);
-        if (fd < 0) {
-            perror("Error opening QDMA device");
+        if(fd < 0) {
+            printf("Failed to open QDMA device\n");
             return -1;
         }
 
-        ret = read_register(device_id_num, 0x0, &current_seed);
-        if (ret < 0) {
-            printf("Error in reading FPGA seed with ret = %d\n", ret);
-            gracefulExit(0);
+        unsigned int current_seed;
+        if(read_register(device_id_num, 0x0, &current_seed) < 0) {
+            printf("Failed to read seed\n");
+            return -1;
         }
-        if (args.verbose) {
-            printf("Current seed: %d\n", current_seed);
+        if(args.verbose) {
+            printf("Current seed: %x\n", current_seed);
         }
         if(current_seed != SEED) {
-            printf("Seed mismatch. Expected %d, got %d\n", SEED, current_seed);
+            printf("Seed mismatch. Expected: %x, Got: %x\n", SEED, current_seed);
             gracefulExit(0);
+            goto cleanup;
         }
 
-        ret = write_register(device_id_num, 0x8, 0x1);
-        if (ret < 0) {
-            printf("Error in enabling P4 engine with ret = %d\n", ret);
-            return ret;
+        if(write_register(device_id_num, 0x8, 0x1) < 0) {
+            printf("Failed to enabling P4 engine");
+            gracefulExit(0);
+            goto cleanup;
         }
     }
 
-    // start = clock();
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    // Main processing loop
-    while (!shouldExit) {
+/**
+ * Initialize Circular Queue
+*/
+    initializeCircularQueue();
 
-        if (!args.mockBool) {
-            ret = peek_qdma_data_len(fd, &c2h_peek_data);
-            if (ret < 0) {
-                printf("Error in peeking data length with ret = %d\n", ret);
-                break;
-            } else if(args.verbose) {
-                printf("Data length: %d\n", c2h_peek_data.data_len);
+/**
+ * Initialize Processing Thread
+*/
+    pthread_t processing_thread;
+    pthread_create(&processing_thread, NULL, processNormalData, &args);
+
+    signal(SIGINT, gracefulExit);
+    signal(SIGTERM, gracefulExit);
+    // signal(SIGSEGV, gracefulExit);
+
+    int datalen = 0;
+    int total_datalen = 0;
+    ioctl_c2h_peek_data_t c2h_peek_data;
+    unsigned char *data = malloc(MAX_DATA_SIZE);
+    DataNode* producer_node;
+
+    struct timespec start, end;
+    double elapsed_time;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    while(!shouldExit) {
+/**
+ * Get Data
+*/
+        if(!args.mockBool) {
+            if(peek_qdma_data_len(fd, &c2h_peek_data) < 0) {
+                printf("Failed to peek QDMA data length\n");
+                gracefulExit(0);
+            }
+            datalen = c2h_peek_data.data_len;
+            if(datalen > 0 && read_qdma_binary(fd, data, datalen) < 0) {
+                printf("Failed to read QDMA data\n");
+                gracefulExit(0);
             }
         } else {
-            // wait for mock signal
-            // printf("Waiting for mock signal\n");
-            // scanf("%d", &mock_signal);
-            // if(mock_signal != 1){
-            //     break;
-            // }
+            datalen = mock_datalen;
+            if(read(mock_fd, data, datalen) < 0) {
+                printf("Failed to read mock data\n");
+                gracefulExit(0);
+            }
         }
+/**
+ * Read Data into buffer
+*/
+        if(datalen > 0) {
+            // get the producer node
+            pthread_mutex_lock(&queue.producer_mutex);
+            producer_node = queue.producer_ptr;
+            pthread_mutex_unlock(&queue.producer_mutex);
 
-        if (c2h_peek_data.data_len > 0 || mock_datalen > 0) {
-            data_len = c2h_peek_data.data_len | mock_datalen;
-            if(!args.mockBool) {
-                // if(args.verbose) {
-                //     printf("Reading data from QDMA device\n");
-                // }
-                ret = read_qdma_binary(fd, buffer+total_data_len, data_len);
-                if (ret < 0) {
-                    printf("Error in reading data with ret = %d\n", ret);
-                    break;
-                }
+            pthread_mutex_lock(&producer_node->mutex);
+            if(producer_node->length + datalen >= MAX_DATA_SIZE) {
+                printf("Buffer overflow detected. Skipping data\n");
             } else {
-                // Mock data
-                // read data from file ./mock/normal.txt
-                // if (args.verbose) {
-                //     printf("Reading data from mock file\n");
-                // }
-                ret = read(mock_fd, buffer+total_data_len, data_len);
-                if (ret < 0) {
-                    printf("Error in reading mock data with ret = %d\n", ret);
-                    break;
-                }
-                lseek(mock_fd, 0, SEEK_SET);
+                memcpy(producer_node->data+producer_node->length, data, datalen);
+                producer_node->length += datalen;
+                total_datalen += datalen;
             }
-            pthread_mutex_lock(&normalDataMutex);
-            memcpy(sharedBuffer+total_data_len, buffer+total_data_len, data_len);
-            pthread_mutex_unlock(&normalDataMutex);
-            total_data_len += data_len;
+            pthread_mutex_unlock(&producer_node->mutex);
         }
 
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        elasped = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-        // if elasped time is more than 1 second, trigger signal
-        if (isNormalDataReady == 0 && elasped > 1) {
-            if(args.verbose) {
-                printf("Elasped time: %lf\n", elasped);
-                printf("Triggering signal\n");
+        if(total_datalen > 0) {
+            clock_gettime(CLOCK_MONOTONIC, &end);
+            elapsed_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+            if(elapsed_time > 3 || total_datalen >= ((double )MAX_DATA_SIZE) * BUFFER_THRESHOLD) {
+                if(args.verbose) {
+                    printf("Elapsed time: %f seconds\n", elapsed_time);
+                    printf("Total data length: %d\n", total_datalen);
+                }
+                if(!getNextNodeToProduce()) {
+                    printf("Buffer full. Data might be lost\n");
+                } else if(args.verbose) {
+                    printf("Moved producer pointer to next node\n");
+                }
+
+                total_datalen = 0;
+                clock_gettime(CLOCK_MONOTONIC, &start);
             }
-            pthread_mutex_lock(&normalDataMutex);
-            // memcpy(sharedBuffer, buffer, total_data_len);
-            sharedBufferLength = total_data_len;
-            isNormalDataReady = 1;
-            pthread_cond_signal(&normalDataCond);
-            pthread_mutex_unlock(&normalDataMutex);
-            total_data_len = 0;
+        } else {
             clock_gettime(CLOCK_MONOTONIC, &start);
         }
-        
     }
 
-    pthread_join(normalDataProcessingThread, NULL);
+    if(args.verbose) {
+        printf("Cleaning up main thread\n");
+    }
 
-    free(buffer);
+    pthread_join(processing_thread, NULL);
 
-    if(!shouldExit) {
-        gracefulExit(0);
+    destroyCircularQueue();
+
+    free(data);
+
+    cleanup:
+
+    if(!args.mockBool && write_register(device_id_num, 0x8, 0x0) < 0) {
+        printf("Failed to disable P4 engine");
+    }
+
+    if(fd > 0) {
+        close(fd);
+    }
+
+    if(mock_fd > 0) {
+        close(mock_fd);
+    }
+
+    if(args.verbose) {
+        printf("Exiting main thread\n");
     }
 
     return 0;
