@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -31,16 +32,13 @@
 typedef struct DataNode {
     char data[MAX_DATA_SIZE];
     int length;
-    pthread_mutex_t mutex;
-    struct DataNode* next;
+    _Atomic(struct DataNode*) next;
 } DataNode;
 
 // Circular buffer structure
 typedef struct {
-    DataNode* producer_ptr;
-    DataNode* consumer_ptr;
-    pthread_mutex_t producer_mutex;
-    pthread_mutex_t consumer_mutex;
+    _Atomic(DataNode*) producer_ptr;
+    _Atomic(DataNode*) consumer_ptr;
 
 } CircularBuffer;
 
@@ -61,6 +59,7 @@ void gracefulExit(int sig) {
 /**
  * initializeCircularQueue
  * - Initializes the circular buffer with NODE_COUNT number of nodes
+ * - Need to be called before spawning any threads
 */
 void initializeCircularQueue() {
     DataNode* head = NULL;
@@ -70,7 +69,6 @@ void initializeCircularQueue() {
         DataNode* node = (DataNode*)malloc(sizeof(DataNode));
         memset(node->data, 0, MAX_DATA_SIZE);
         node->length = 0;
-        pthread_mutex_init(&node->mutex, NULL);
         node->next = NULL;
 
         if (!head) {
@@ -85,13 +83,12 @@ void initializeCircularQueue() {
     queue.producer_ptr = head->next;
     queue.consumer_ptr = head;
 
-    pthread_mutex_init(&queue.producer_mutex, NULL);
-    pthread_mutex_init(&queue.consumer_mutex, NULL);
 }
 
 /**
  * destroyCircularQueue
  * - Frees the memory allocated for the circular buffer
+ * - Need to be called after all threads have exited
 */
 void destroyCircularQueue() {
     DataNode* head = queue.producer_ptr;
@@ -99,31 +96,30 @@ void destroyCircularQueue() {
     DataNode* next = head->next;
 
     while(next != head) {
-        pthread_mutex_destroy(&(current->mutex));
         free(current);
         current = next;
         next = next->next;
     }
-    pthread_mutex_destroy(&(current->mutex));
+
     free(current);
 }
 
 /**
  * moveProducerPtr
  * - Moves the producer pointer to the next node in the circular buffer
- * - Assumes that the producer mutex is locked
+ * - Requires atomic operations to ensure thread safety
 */
 void moveProducerPtr() {
-    queue.producer_ptr = queue.producer_ptr->next;
+    atomic_store(&queue.producer_ptr, atomic_load(&queue.producer_ptr)->next);
 }
 
 /**
  * moveConsumerPtr
  * - Moves the consumer pointer to the next node in the circular buffer
- * - Assumes that the consumer mutex is locked
+ * - Requires atomic operations to ensure thread safety
 */
 void moveConsumerPtr() {
-    queue.consumer_ptr = queue.consumer_ptr->next;
+    atomic_store(&queue.consumer_ptr, atomic_load(&queue.consumer_ptr)->next);
 }
 
 /**
@@ -134,20 +130,12 @@ void moveConsumerPtr() {
  * - 1 if the consumer has not caught up with the producer, and the consumer pointer has been moved
 */
 int getNextNodeToConsume() {
-    pthread_mutex_lock(&queue.consumer_mutex);
-    pthread_mutex_lock(&queue.producer_mutex);
-
     // check if consumer has caught up with producer
-    if(queue.consumer_ptr->next == queue.producer_ptr) {
-        pthread_mutex_unlock(&queue.consumer_mutex);
-        pthread_mutex_unlock(&queue.producer_mutex);
+    if(atomic_load(&queue.consumer_ptr)->next == atomic_load(&queue.producer_ptr)) {
         return 0;
     }
 
     moveConsumerPtr();
-
-    pthread_mutex_unlock(&queue.producer_mutex);
-    pthread_mutex_unlock(&queue.consumer_mutex);
 
     return 1;
 }
@@ -160,18 +148,12 @@ int getNextNodeToConsume() {
  * - 1 if the next node is different from the consumer node, and the producer pointer has been moved
 */
 int getNextNodeToProduce() {
-    pthread_mutex_lock(&queue.consumer_mutex);
-    pthread_mutex_lock(&queue.producer_mutex);
-
     // check if producer has caught up with consumer
-    if(queue.producer_ptr->next == queue.consumer_ptr) {
+    if(atomic_load(&queue.producer_ptr)->next == atomic_load(&queue.consumer_ptr)) {
         return 0;
     }
 
     moveProducerPtr();
-
-    pthread_mutex_unlock(&queue.producer_mutex);
-    pthread_mutex_unlock(&queue.consumer_mutex);
 
     return 1;
 }
@@ -245,11 +227,8 @@ void* processNormalData(void* programArgs) {
         if(getNextNodeToConsume()) {
             shouldExit = 1;
 
-            pthread_mutex_lock(&queue.consumer_mutex);
-            consumer_node = queue.consumer_ptr;
-            pthread_mutex_unlock(&queue.consumer_mutex);
+            consumer_node = atomic_load(&queue.consumer_ptr);
 
-            pthread_mutex_lock(&consumer_node->mutex);
             if(consumer_node->length > 0) {
                 if(args->verbose) {
                     printf("Processing %d bytes of data\n", consumer_node->length);
@@ -293,7 +272,6 @@ void* processNormalData(void* programArgs) {
             }
             write_completed:
             consumer_node->length = 0;
-            pthread_mutex_unlock(&consumer_node->mutex);
         } else {
             usleep(1000);
         }
@@ -402,7 +380,7 @@ int main(int argc, char* argv[]) {
     int total_datalen = 0;
     ioctl_c2h_peek_data_t c2h_peek_data;
     unsigned char *data = malloc(MAX_DATA_SIZE);
-    DataNode* producer_node;
+    _Atomic(DataNode*) producer_node;
 
     struct timespec start, end;
     double elapsed_time;
@@ -433,11 +411,8 @@ int main(int argc, char* argv[]) {
 */
         if(datalen > 0) {
             // get the producer node
-            pthread_mutex_lock(&queue.producer_mutex);
-            producer_node = queue.producer_ptr;
-            pthread_mutex_unlock(&queue.producer_mutex);
+            producer_node = atomic_load(&queue.producer_ptr);
 
-            pthread_mutex_lock(&producer_node->mutex);
             if(producer_node->length + datalen >= MAX_DATA_SIZE) {
                 printf("Buffer overflow detected. Skipping data\n");
             } else {
@@ -445,7 +420,6 @@ int main(int argc, char* argv[]) {
                 producer_node->length += datalen;
                 total_datalen += datalen;
             }
-            pthread_mutex_unlock(&producer_node->mutex);
         }
 
         if(total_datalen > 0) {
