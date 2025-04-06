@@ -209,6 +209,8 @@ void ensureDirectoryExists(const char* path) {
 void* processNormalData(void* programArgs) {
     program_args_t* args = (program_args_t*)programArgs;
 
+    int ret = 0;
+
     char normalDirPath[256];
 
     char filePath[256], timestamp[32];
@@ -218,8 +220,6 @@ void* processNormalData(void* programArgs) {
     char* tokenBuffer = (char*)malloc(MAX_DATA_SIZE);
     char* writingBuffer = (char*)malloc(MAX_DATA_SIZE);
 
-    normal_data_t* normal_data_array = (normal_data_t*)malloc(MAX_RECORDS * sizeof(normal_data_t));
-
     for(int i=0;i<MAX_RECORDS;i++) {
         tokens[i] = tokenBuffer + i * MAX_RECORDS_SIZE;
     }
@@ -227,8 +227,8 @@ void* processNormalData(void* programArgs) {
     snprintf(normalDirPath, sizeof(normalDirPath), "%s/normal", args->dir_path);
     ensureDirectoryExists(normalDirPath);
 
-    if (!tokens || !tokenBuffer || !writingBuffer || !normal_data_array) {
-        printf("Failed to allocate memory for tokens, tokenBuffer, writingBuffer or normal_data_array\n");
+    if (!tokens || !tokenBuffer || !writingBuffer) {
+        printf("Failed to allocate memory for tokens, tokenBuffer and/or writingBuffer\n");
         gracefulExit(0);
         goto normalProcessingCleanup;
     }
@@ -240,6 +240,7 @@ void* processNormalData(void* programArgs) {
     DataNode* consumer_node;
     int numTokens = 0;
     int recordCount = 0;
+    int offset = 0;
     while(!shouldExit) {
         if(getNextNodeToConsume()) {
             shouldExit = 1;
@@ -263,22 +264,20 @@ void* processNormalData(void* programArgs) {
                 }
 
                 recordCount = 0;
+                offset = 0;
                 for(int i=0;i<numTokens;i++) {
-                    if(extractNormalData(&normal_data_array[recordCount], tokens[i], strlen(tokens[i])) < 0) {
-                        printf("Failed to extract normal data\n");
+                    ret = extractNormalDataToCSV(writingBuffer + offset, tokens[i], strlen(tokens[i]));
+                    if(ret < 0) {
+                        printf("Failed to extract normal data and write to CSV format\n");
                         continue;
                     }
+                    offset += ret;
                     recordCount++;
                 }
 
                 if(recordCount > 0) {
                     if(args->verbose) {
-                        printf("Extracted %d records\n", recordCount);
-                    }
-
-                    if(convertArrayOfNormalDataToCSV(normal_data_array, recordCount, writingBuffer) < 0) {
-                        printf("Failed to convert normal data to CSV\n");
-                        goto write_completed;
+                        printf("Extracted %d records", recordCount);
                     }
 
                     getCurrentTimestamp(timestamp, sizeof(timestamp));
@@ -309,7 +308,6 @@ void* processNormalData(void* programArgs) {
     free(tokens);
     free(tokenBuffer);
     free(writingBuffer);
-    free(normal_data_array);
 
     return NULL;
 }
