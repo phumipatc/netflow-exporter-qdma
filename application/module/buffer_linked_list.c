@@ -41,11 +41,13 @@ void destroyCircularQueue(CircularBuffer* queue) {
     DataNode* next = head->next;
 
     while(next != head) {
+        free(current->data);
         free(current);
         current = next;
         next = next->next;
     }
 
+    free(current->data);
     free(current);
 }
 
