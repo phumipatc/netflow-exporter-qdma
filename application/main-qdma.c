@@ -367,6 +367,11 @@ int main(int argc, char* argv[]) {
     }
 
 /**
+ * Initialize DB Writer
+*/
+    initDBWriter("localhost", "8086", "file_records");
+
+/**
  * Initialize Circular Queue
 */
     initializeCircularQueue();
@@ -456,6 +461,8 @@ int main(int argc, char* argv[]) {
     pthread_join(processing_thread, NULL);
 
     destroyCircularQueue();
+
+    destroyDBWriter();
 
     free(data);
 

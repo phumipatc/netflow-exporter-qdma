@@ -4,9 +4,19 @@
 #include <cstdio>
 #include <fcntl.h>
 
-int logFileNamesToInfluxDB(const char* host, int port, const char* database, const char* fileName) {
+influxdb_cpp::server_info conn;
+
+void initDBWriter(const char* host, int port, const char* database) {
 	using namespace influxdb_cpp;
-	auto conn = influxdb_cpp::server_info(host, port, database, "hoshino", "hoshino555", "ms", "_khxc6pgVeJ8hCJsXF3Gr2mqYuuTA9OCqq_AgHNR331lYG1DT_xueBLTpxrW1LM_G8FPi-zZ3I9yJt2XJPitbQ==");
+	conn = influxdb_cpp::server_info(host, port, database, "hoshino", "hoshino555", "ms", "_khxc6pgVeJ8hCJsXF3Gr2mqYuuTA9OCqq_AgHNR331lYG1DT_xueBLpxrW1LM_G8FPi-zZ3I9yJt2XJPitbQ==");
+}
+
+void destroyDBWriter() {
+	// No specific cleanup needed for influxdb-cpp
+}
+
+int logFileNamesToInfluxDB(const char* fileName) {
+	using namespace influxdb_cpp;
 
 	int status = builder()
 		.meas("file_records")
@@ -31,5 +41,6 @@ int writeToFile(const char* filePath, const char* buffer, size_t size) {
 	write(fd, buffer, size);
 	close(fd);
 
+	// return logFileNamesToInfluxDB("localhost", 8086, "file_records", filePath);
 	return 0;
 }
