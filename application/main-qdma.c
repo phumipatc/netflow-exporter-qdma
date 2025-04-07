@@ -1,6 +1,7 @@
-#include "parse_cmd.h"
+#include <buffer_linked_list.h>
 #include "data_manager.h"
 #include "db_writer.h"
+#include "parse_cmd.h"
 #include "qdma_fn.h"
 
 #include <errno.h>
@@ -19,29 +20,27 @@
     Constants
 */
 #define BUFFER_THRESHOLD 0.85
-#define MAX_RECORDS (1 << 23)
-#define MAX_RECORDS_SIZE (1 << 5)
-#define MAX_DATA_SIZE (MAX_RECORDS * MAX_RECORDS_SIZE)
-#define MAX_WRITE_SIZE (1 << 30)
-#define NODE_COUNT (1 << 5)
+#define MAX_WRITE_BUFFER_SIZE (1 << 30)
+#define NODE_COUNT (1 << 4)
 #define SEED 0xA3F7C92D
+
+/**
+ * Normal data processing
+*/
+#define NORMAL_MAX_BUFFER_COUNT (1 << 23)
+#define NORMAL_MAX_BUFFER_SIZE (1 << 5)
+#define NORMAL_MAX_DATA_SIZE (NORMAL_MAX_BUFFER_COUNT * NORMAL_MAX_BUFFER_SIZE)
+
+/**
+ * NetFlow Record processing
+*/
+#define NETFLOW_MAX_BUFFER_COUNT (1 << 22)
+#define NETFLOW_MAX_BUFFER_SIZE 52
+#define NETFLOW_MAX_DATA_SIZE (NETFLOW_MAX_BUFFER_COUNT * NETFLOW_MAX_BUFFER_SIZE)
 
 /*
     Data structures
 */
-// circular linked list node
-typedef struct DataNode {
-    char data[MAX_DATA_SIZE];
-    int length;
-    _Atomic(struct DataNode*) next;
-} DataNode;
-
-// Circular buffer structure
-typedef struct {
-    _Atomic(DataNode*) producer_ptr;
-    _Atomic(DataNode*) consumer_ptr;
-
-} CircularBuffer;
 
 volatile int shouldExit = 0;
 CircularBuffer queue;
@@ -55,108 +54,6 @@ struct tm *tm_now;
 void gracefulExit(int sig) {
     printf("Caught signal %d\n", sig);
     shouldExit = 1;
-}
-
-/**
- * initializeCircularQueue
- * - Initializes the circular buffer with NODE_COUNT number of nodes
- * - Need to be called before spawning any threads
-*/
-void initializeCircularQueue() {
-    DataNode* head = NULL;
-    DataNode* prev = NULL;
-
-    for(int i=0;i<NODE_COUNT;i++) {
-        DataNode* node = (DataNode*)malloc(sizeof(DataNode));
-        memset(node->data, 0, MAX_DATA_SIZE);
-        node->length = 0;
-        node->next = NULL;
-
-        if (!head) {
-            head = node;
-        } else {
-            prev->next = node;
-        }
-        prev = node;
-    }
-    prev->next = head;
-
-    queue.producer_ptr = head->next;
-    queue.consumer_ptr = head;
-
-}
-
-/**
- * destroyCircularQueue
- * - Frees the memory allocated for the circular buffer
- * - Need to be called after all threads have exited
-*/
-void destroyCircularQueue() {
-    DataNode* head = queue.producer_ptr;
-    DataNode* current = head;
-    DataNode* next = head->next;
-
-    while(next != head) {
-        free(current);
-        current = next;
-        next = next->next;
-    }
-
-    free(current);
-}
-
-/**
- * moveProducerPtr
- * - Moves the producer pointer to the next node in the circular buffer
- * - Requires atomic operations to ensure thread safety
-*/
-void moveProducerPtr() {
-    atomic_store(&queue.producer_ptr, atomic_load(&queue.producer_ptr)->next);
-}
-
-/**
- * moveConsumerPtr
- * - Moves the consumer pointer to the next node in the circular buffer
- * - Requires atomic operations to ensure thread safety
-*/
-void moveConsumerPtr() {
-    atomic_store(&queue.consumer_ptr, atomic_load(&queue.consumer_ptr)->next);
-}
-
-/**
- * getNextNodeToConsume
- * - If the consumer has not caught up with the producer, moves the consumer pointer to the next node in the circular buffer
- * Returns:
- * - 0 if the consumer has caught up with the producer
- * - 1 if the consumer has not caught up with the producer, and the consumer pointer has been moved
-*/
-int getNextNodeToConsume() {
-    // check if consumer has caught up with producer
-    if(atomic_load(&queue.consumer_ptr)->next == atomic_load(&queue.producer_ptr)) {
-        return 0;
-    }
-
-    moveConsumerPtr();
-
-    return 1;
-}
-
-/**
- * getNextNodeToProduce
- * - If the producer has not caught up with the consumer, moves the producer pointer to the next node in the circular buffer
- * Returns:
- * - 0 if the next node is the same as the consumer node
- * - 1 if the next node is different from the consumer node, and the producer pointer has been moved
-*/
-int getNextNodeToProduce() {
-    // check if producer has caught up with consumer
-    if(atomic_load(&queue.producer_ptr)->next == atomic_load(&queue.consumer_ptr)) {
-        return 0;
-    }
-
-    moveProducerPtr();
-
-    return 1;
 }
 
 /** getCurrentTimestamp
@@ -199,12 +96,12 @@ void* processNormalData(void* programArgs) {
     char filePath[256], timestamp[32];
     char separator[] = {0x0D, 0x0A};
 
-    char** tokens = (char**)malloc(MAX_RECORDS * sizeof(char*));
-    char* tokenBuffer = (char*)malloc(MAX_DATA_SIZE);
-    char* writingBuffer = (char*)malloc(MAX_WRITE_SIZE);
+    char** tokens = (char**)malloc(NORMAL_MAX_BUFFER_COUNT * sizeof(char*));
+    char* tokenBuffer = (char*)malloc(NORMAL_MAX_DATA_SIZE);
+    char* writingBuffer = (char*)malloc(MAX_WRITE_BUFFER_SIZE);
 
-    for(int i=0;i<MAX_RECORDS;i++) {
-        tokens[i] = tokenBuffer + i * MAX_RECORDS_SIZE;
+    for(int i=0;i<NORMAL_MAX_BUFFER_COUNT;i++) {
+        tokens[i] = tokenBuffer + i * NORMAL_MAX_BUFFER_SIZE;
     }
 
     snprintf(normalDirPath, sizeof(normalDirPath), "%s/normal", args->dir_path);
@@ -225,7 +122,7 @@ void* processNormalData(void* programArgs) {
     int recordCount = 0;
     int offset = 0;
     while(!shouldExit) {
-        if(getNextNodeToConsume()) {
+        if(getNextNodeToConsume(&queue)) {
             // shouldExit = 1;
 
             consumer_node = atomic_load(&queue.consumer_ptr);
@@ -252,7 +149,7 @@ void* processNormalData(void* programArgs) {
                         printf("Failed to extract normal data and write to CSV format\n");
                         continue;
                     } else if(args->verbose) {
-                        if(offset > MAX_WRITE_SIZE * BUFFER_THRESHOLD) {
+                        if(offset > MAX_WRITE_BUFFER_SIZE * BUFFER_THRESHOLD) {
                             printf("The writing buffer is nearly full with %d bytes\n", offset);
                         }
                     }
@@ -374,7 +271,7 @@ int main(int argc, char* argv[]) {
 /**
  * Initialize Circular Queue
 */
-    initializeCircularQueue();
+    initializeCircularQueue(&queue, NODE_COUNT, NORMAL_MAX_DATA_SIZE);
 
 /**
  * Initialize Processing Thread
@@ -389,7 +286,7 @@ int main(int argc, char* argv[]) {
     int datalen = 0;
     int total_datalen = 0;
     ioctl_c2h_peek_data_t c2h_peek_data;
-    unsigned char *data = malloc(MAX_DATA_SIZE);
+    unsigned char *data = malloc(NORMAL_MAX_DATA_SIZE);
     _Atomic(DataNode*) producer_node;
 
     struct timespec start, end;
@@ -423,7 +320,7 @@ int main(int argc, char* argv[]) {
             // get the producer node
             producer_node = atomic_load(&queue.producer_ptr);
 
-            if(producer_node->length + datalen >= MAX_DATA_SIZE) {
+            if(producer_node->length + datalen >= NORMAL_MAX_DATA_SIZE) {
                 printf("Buffer overflow detected. Skipping data\n");
             } else {
                 memcpy(producer_node->data+producer_node->length, data, datalen);
@@ -435,12 +332,12 @@ int main(int argc, char* argv[]) {
         if(total_datalen > 0) {
             clock_gettime(CLOCK_MONOTONIC, &end);
             elapsed_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-            if(elapsed_time > 3 || total_datalen >= ((double )MAX_DATA_SIZE) * BUFFER_THRESHOLD) {
+            if(elapsed_time > 3 || total_datalen >= ((double )NORMAL_MAX_DATA_SIZE) * BUFFER_THRESHOLD) {
                 if(args.verbose) {
                     printf("Elapsed time: %f seconds\n", elapsed_time);
                     printf("Total data length: %d\n", total_datalen);
                 }
-                if(!getNextNodeToProduce()) {
+                if(!getNextNodeToProduce(&queue)) {
                     printf("Buffer full. Data might be lost\n");
                 } else if(args.verbose) {
                     printf("Moved producer pointer to next node\n");
@@ -460,7 +357,7 @@ int main(int argc, char* argv[]) {
 
     pthread_join(processing_thread, NULL);
 
-    destroyCircularQueue();
+    destroyCircularQueue(&queue);
 
     destroyDBWriter();
 
