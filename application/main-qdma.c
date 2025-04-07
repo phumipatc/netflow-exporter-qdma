@@ -19,10 +19,11 @@
     Constants
 */
 #define BUFFER_THRESHOLD 0.9
-#define MAX_RECORDS 33554432
-#define MAX_RECORDS_SIZE 32
+#define MAX_RECORDS (1 << 23)
+#define MAX_RECORDS_SIZE (1 << 5)
 #define MAX_DATA_SIZE (MAX_RECORDS * MAX_RECORDS_SIZE)
-#define NODE_COUNT 8
+#define MAX_WRITE_SIZE (1 << 30)
+#define NODE_COUNT (1 << 5)
 #define SEED 0xA3F7C92D
 
 /*
@@ -200,7 +201,7 @@ void* processNormalData(void* programArgs) {
 
     char** tokens = (char**)malloc(MAX_RECORDS * sizeof(char*));
     char* tokenBuffer = (char*)malloc(MAX_DATA_SIZE);
-    char* writingBuffer = (char*)malloc(MAX_DATA_SIZE);
+    char* writingBuffer = (char*)malloc(MAX_WRITE_SIZE);
 
     for(int i=0;i<MAX_RECORDS;i++) {
         tokens[i] = tokenBuffer + i * MAX_RECORDS_SIZE;
@@ -225,7 +226,7 @@ void* processNormalData(void* programArgs) {
     int offset = 0;
     while(!shouldExit) {
         if(getNextNodeToConsume()) {
-            shouldExit = 1;
+            // shouldExit = 1;
 
             consumer_node = atomic_load(&queue.consumer_ptr);
 
@@ -244,29 +245,33 @@ void* processNormalData(void* programArgs) {
 
                 recordCount = 0;
                 offset = 0;
+                writeNormalDataCSVHeaders(writingBuffer, &offset);
                 for(int i=0;i<numTokens;i++) {
-                    ret = extractNormalDataToCSV(writingBuffer + offset, tokens[i], strlen(tokens[i]));
+                    extractNormalDataToCSV(writingBuffer, &offset, tokens[i], strlen(tokens[i]));
                     if(ret < 0) {
                         printf("Failed to extract normal data and write to CSV format\n");
                         continue;
+                    } else if(args->verbose) {
+                        if(offset > MAX_WRITE_SIZE * BUFFER_THRESHOLD) {
+                            printf("The writing buffer is nearly full with %d bytes\n", offset);
+                        }
                     }
-                    offset += ret;
                     recordCount++;
                 }
 
                 if(recordCount > 0) {
                     if(args->verbose) {
-                        printf("Extracted %d records", recordCount);
+                        printf("Extracted %d records\n", recordCount);
                     }
 
                     getCurrentTimestamp(timestamp, sizeof(timestamp));
                     snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", normalDirPath, timestamp);
 
-                    if(writeToFile(filePath, writingBuffer, strlen(writingBuffer)) < 0) {
+                    if(writeToFile(filePath, writingBuffer, offset) < 0) {
                         printf("Failed to write normal data to file\n");
                         goto write_completed;
                     } else if(args->verbose) {
-                        printf("Wrote %d records to file: %s\n", recordCount, filePath);
+                        printf("Wrote %d bytes to file: %s\n", offset, filePath);
                     }
                 }
             }

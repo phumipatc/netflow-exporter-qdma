@@ -80,11 +80,11 @@ static const int netflow_record_sum_size = 32 + 32 + 32 + 16 + 16 + 32 + 32 + 32
 
 int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **tokens, int *numTokens);
 
-int writeNormalDataCSVHeaders(char *writingBuffer);
-int extractNormalDataToCSV(char *buffer, char *data, int len);
+void writeNormalDataCSVHeaders(char *writingBuffer, int *writingOffset);
+void extractNormalDataToCSV(char *writingBuffer, int *writingOffset, char *data, int len);
 
-int writeNetFlowDataCSVHeaders(char *writingBuffer);
-int extractNetFlowHeaderToCSV(char *writingBuffer, char *buffer, int len);
-int extractNetFlowRecordToCSV(char *writingBuffer, char *buffer, int len);
-int extractFullNetFlowPacketToCSV(char *writingBuffer, char *buffer, int len);
+void writeNetFlowDataCSVHeaders(char *writingBuffer, int *writingOffset);
+void extractNetFlowHeaderToCSV(char *writingBuffer, int *writingOffset, char *buffer, int len);
+void extractNetFlowRecordToCSV(char *writingBuffer, int *writingOffset, char *buffer, int len);
+void extractFullNetFlowPacketToCSV(char *writingBuffer, int *writingOffset, char *buffer, int len);
 #endif
