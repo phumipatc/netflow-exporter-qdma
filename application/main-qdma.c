@@ -18,7 +18,7 @@
 /*
     Constants
 */
-#define BUFFER_THRESHOLD 0.9
+#define BUFFER_THRESHOLD 0.85
 #define MAX_RECORDS (1 << 23)
 #define MAX_RECORDS_SIZE (1 << 5)
 #define MAX_DATA_SIZE (MAX_RECORDS * MAX_RECORDS_SIZE)

@@ -52,7 +52,6 @@ int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **
 
 	for (int i = 0; i < buffer_len; ++i) {
 		if (memcmp(buffer + i, separator, sep_len) == 0) {
-			// printf("Found separator at index %d\n", i);
 			memcpy(tokens[*numTokens], buffer + last_sep, i - last_sep + sep_len);
 			tokens[*numTokens][i - last_sep + sep_len] = '\0';
 			++(*numTokens);
@@ -72,7 +71,7 @@ int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **
 }
 
 void writeNormalDataCSVHeaders(char* writingBuffer, int *writingOffset) {
-	*writingOffset += sprintf(writingBuffer, "count,srcaddr,dstaddr,nexthop,dPkts,dOctets,srcport,dstport,prot,tos,padding\n");
+	*writingOffset += sprintf(writingBuffer, "srcaddr,dstaddr,nexthop,dPkts,dOctets,srcport,dstport,prot,tos\n");
 }
 
 void extractNormalDataToCSV(char* writingBuffer, int *writingOffset, char* buffer, int len) {
@@ -85,30 +84,17 @@ void extractNormalDataToCSV(char* writingBuffer, int *writingOffset, char* buffe
 			value <<= 8;
 			value |= buffer[Readingoffset++];
 		}
-		toString(writingBuffer, writingOffset, value, ',');
-	}
-	writingBuffer[*writingOffset] = '\n';
-	++(*writingOffset);
-}
-
-void writeNetFlowDataCSVHeaders(char* writingBuffer, int *writingOffset) {
-	*writingOffset += sprintf(writingBuffer, "version,count,sys_uptime,unix_secs,unix_nsecs,flow_sequence,engine_type,engine_id,sampling_interval\n");
-}
-
-void extractNetFlowHeaderToCSV(char* writingBuffer, int *writingOffset, char* buffer, int len) {
-	int readingOffset = 0;
-	int i, b;
-
-	uint32_t value = 0;
-	for(i = 0; i < netflow_header_array_length-1; i++) {
-		for(b = header_field_sizes[i]/8; b > 0; --b) {
-			value <<= 8;
-			value |= buffer[readingOffset++];
+		if(normal_field_skip_mark[i]) {
+			continue;
 		}
 		toString(writingBuffer, writingOffset, value, ',');
 	}
 	writingBuffer[*writingOffset] = '\n';
 	++(*writingOffset);
+}
+
+void writeNetFlowRecordCSVHeaders(char* writingBuffer, int *writingOffset) {
+	*writingOffset += sprintf(writingBuffer, "srcaddr,dstaddr,nexthop,input,output,dPkts,dOctets,First,Last,srcport,dstport,tcp_flags,prot,tos,src_as,dst_as,src_mask,dst_mask\n");
 }
 
 void extractNetFlowRecordToCSV(char* writingBuffer, int *writingOffset, char* buffer, int len) {
@@ -121,28 +107,11 @@ void extractNetFlowRecordToCSV(char* writingBuffer, int *writingOffset, char* bu
 			value <<= 8;
 			value |= buffer[readingOffset++];
 		}
+		if(netflow_record_skip_mark[i]) {
+			continue;
+		}
 		toString(writingBuffer, writingOffset, value, ',');
 	}
 	writingBuffer[*writingOffset] = '\n';
 	++(*writingOffset);
-}
-
-void getNetFlowRecordCountFromHeader(char* buffer, int* recordCount) {
-	recordCount = (buffer[2] << 8) | buffer[3];
-}
-
-void extractFullNetFlowPacketToCSV(char* writingBuffer, int *writingOffset, char* buffer, int len) {
-	writeNetFlowDataCSVHeaders(writingBuffer, &writingOffset);
-
-	extractNetFlowHeaderToCSV(writingBuffer, &writingOffset, buffer, len);
-
-	int recordCount = 0;
-	getNetFlowRecordCountFromHeader(buffer, &recordCount);
-
-	for(int i = 0; i < recordCount; i++) {
-		extractNetFlowRecordToCSV(writingBuffer, &writingOffset, 
-			buffer + netflow_header_sum_size/8 + i * netflow_record_sum_size/8, 
-			len - (netflow_header_sum_size/8 + i * netflow_record_sum_size/8)
-		);
-	}
 }

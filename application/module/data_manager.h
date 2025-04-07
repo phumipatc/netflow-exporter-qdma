@@ -5,8 +5,7 @@
 
 // typedef struct {
 // 	// TODO: Define the structure of the normal data
-// 	// count, srcaddr, dstaddr, nexthop, dPkts, dOctets, srcport, dscport, prot, tos
-// 	uint16_t	count;
+// 	// srcaddr, dstaddr, nexthop, dPkts, dOctets, srcport, dscport, prot, tos
 // 	uint32_t	srcaddr;
 // 	uint32_t	dstaddr;
 // 	uint32_t	nexthop;
@@ -19,30 +18,15 @@
 // 	uint16_t	padding;
 // } normal_data_t;
 
-static const int normal_field_sizes_length = 11;
+static const int normal_field_sizes_length = 10;
 static const uint8_t normal_field_sizes[] = {
-	16, 32, 32, 32, 32, 32, 16, 16, 8, 8, 16
+	32, 32, 32, 32, 32, 16, 16, 8, 8, 16
 };
-static const int normal_field_sum_size = 16 + 32 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 16;
-
-// typedef struct {
-// 	uint16_t	version;
-//     uint16_t	count;
-//     uint32_t	sys_uptime;
-//     uint32_t	unix_secs;
-//     uint32_t	unix_nsecs;
-//     uint32_t	flow_sequence;
-//     uint8_t		engine_type;
-//     uint8_t		engine_id;
-//     uint16_t	sampling_interval;
-
-// } netflow_header_t;
-
-static const int netflow_header_array_length = 9;
-static const uint8_t header_field_sizes[] = {
-	16, 16, 32, 32, 32, 32, 8, 8, 16
+static const int normal_field_sum_size = 32 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 16;
+static const int normal_field_skip_mark[] = {
+	// skipping the padding
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 1
 };
-static const int netflow_header_sum_size = 16 + 16 + 32 + 32 + 32 + 32 + 8 + 8 + 16;
 
 // typedef struct {
 // 	uint32_t	srcaddr;
@@ -72,19 +56,17 @@ static const uint8_t record_field_sizes[] = {
 	32, 32, 32, 16, 16, 32, 32, 32, 32, 16, 16, 8, 8, 8, 16, 16, 8, 8, 16
 };
 static const int netflow_record_sum_size = 32 + 32 + 32 + 16 + 16 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 8 + 16 + 16 + 8 + 8 + 16;
-
-// typedef struct {
-// 	netflow_header_t header;
-// 	netflow_flow_record_t records[32];
-// } full_netflow_packet_t;
+static const int netflow_record_skip_mark[] = {
+	// skipping the padding
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1
+};
 
 int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **tokens, int *numTokens);
 
 void writeNormalDataCSVHeaders(char *writingBuffer, int *writingOffset);
 void extractNormalDataToCSV(char *writingBuffer, int *writingOffset, char *data, int len);
 
-void writeNetFlowDataCSVHeaders(char *writingBuffer, int *writingOffset);
-void extractNetFlowHeaderToCSV(char *writingBuffer, int *writingOffset, char *buffer, int len);
+void writeNetFlowRecordCSVHeaders(char *writingBuffer, int *writingOffset);
 void extractNetFlowRecordToCSV(char *writingBuffer, int *writingOffset, char *buffer, int len);
-void extractFullNetFlowPacketToCSV(char *writingBuffer, int *writingOffset, char *buffer, int len);
-#endif
+
+#endif // DATA_MANAGER_H
