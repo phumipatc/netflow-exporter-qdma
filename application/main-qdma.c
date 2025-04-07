@@ -44,9 +44,12 @@
 
 volatile int shouldExit = 0;
 volatile int normalReady = 0;
+volatile int netflowReady = 0;
 CircularBuffer normalQueue;
+CircularBuffer netflowQueue;
 
 int normal_fd, normal_mock_fd;
+int netflow_fd, netflow_mock_fd;
 unsigned int device_id_num;
 
 time_t time_now;
@@ -80,6 +83,10 @@ void ensureDirectoryExists(const char* path) {
     }
 }
 
+/** ----------------------------------------------------------------------------------------------------
+ * Normal Data Threads
+*/
+
 /**
  * readNormalData
  * - Thread function to read normal data
@@ -92,12 +99,11 @@ void* readNormalData(void *programArgs) {
 /**
  * Initialize mock data file
 */
-        printf("Opening mock data file\n");
-        printf("Skipping QDMA initialization\n");
+        printf("Normal: Opening mock data file\n");
 
         normal_mock_fd = open("./mock/normal.txt", O_RDONLY | O_NONBLOCK);
         if(normal_mock_fd < 0) {
-            printf("Failed to open mock data file\n");
+            printf("Normal: Failed to open mock data file\n");
             gracefulExit(0);
             goto normalReadingFilesClosing;
         }
@@ -129,18 +135,18 @@ void* readNormalData(void *programArgs) {
 */
         if(!args->mockBool) {
             if(peek_qdma_data_len(normal_fd, &c2h_peek_data) < 0) {
-                printf("Failed to peek QDMA data length\n");
+                printf("Normal: Failed to peek QDMA data length\n");
                 gracefulExit(0);
             }
             datalen = c2h_peek_data.data_len;
             if(datalen > 0 && read_qdma_binary(normal_fd, data, datalen) < 0) {
-                printf("Failed to read QDMA data\n");
+                printf("Normal: Failed to read QDMA data\n");
                 gracefulExit(0);
             }
         } else {
             datalen = normal_mock_datalen;
             if(read(normal_mock_fd, data, datalen) < 0) {
-                printf("Failed to read mock data\n");
+                printf("Normal: Failed to read mock data\n");
                 gracefulExit(0);
             }
         }
@@ -152,7 +158,7 @@ void* readNormalData(void *programArgs) {
             producer_node = atomic_load(&normalQueue.producer_ptr);
 
             if(producer_node->length + datalen >= NORMAL_MAX_DATA_SIZE) {
-                printf("Buffer overflow detected. Skipping data\n");
+                printf("Normal: Buffer overflow detected. Skipping data\n");
             } else {
                 memcpy(producer_node->data+producer_node->length, data, datalen);
                 producer_node->length += datalen;
@@ -165,13 +171,13 @@ void* readNormalData(void *programArgs) {
             elapsed_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
             if(elapsed_time > 3 || total_datalen >= ((double )NORMAL_MAX_DATA_SIZE) * BUFFER_THRESHOLD) {
                 if(args->verbose) {
-                    printf("Elapsed time: %f seconds\n", elapsed_time);
-                    printf("Total data length: %d\n", total_datalen);
+                    printf("Normal: Elapsed time: %f seconds\n", elapsed_time);
+                    printf("Normal: Total data length: %d\n", total_datalen);
                 }
                 if(!getNextNodeToProduce(&normalQueue)) {
-                    printf("Buffer full. Data might be lost\n");
+                    printf("Normal: Buffer full. Data might be lost\n");
                 } else if(args->verbose) {
-                    printf("Moved producer pointer to next node\n");
+                    printf("Normal: Moved producer pointer to next node\n");
                 }
 
                 total_datalen = 0;
@@ -231,7 +237,7 @@ void* processNormalData(void* programArgs) {
     ensureDirectoryExists(normalDirPath);
 
     if (!tokens || !tokenBuffer || !writingBuffer) {
-        printf("Failed to allocate memory for tokens, tokenBuffer and/or writingBuffer\n");
+        printf("Normal: Failed to allocate memory for tokens, tokenBuffer and/or writingBuffer\n");
         gracefulExit(0);
         goto normalProcessingCleanup;
     }
@@ -256,15 +262,15 @@ void* processNormalData(void* programArgs) {
 
             if(consumer_node->length > 0) {
                 if(args->verbose) {
-                    printf("Processing %d bytes of data\n", consumer_node->length);
+                    printf("Normal: Processing %d bytes of data\n", consumer_node->length);
                 }
 
                 numTokens = 0;
                 if(tokenizeData(consumer_node->data, consumer_node->length, separator, tokens, &numTokens) < 0) {
-                    printf("Failed to tokenize data\n");
+                    printf("Normal: Failed to tokenize data\n");
                     goto write_completed;
                 } else if(args->verbose) {
-                    printf("Tokenized %d records\n", numTokens);
+                    printf("Normal: Tokenized %d records\n", numTokens);
                 }
 
                 recordCount = 0;
@@ -273,11 +279,11 @@ void* processNormalData(void* programArgs) {
                 for(int i=0;i<numTokens;i++) {
                     extractNormalDataToCSV(writingBuffer, &offset, tokens[i], strlen(tokens[i]));
                     if(ret < 0) {
-                        printf("Failed to extract normal data and write to CSV format\n");
+                        printf("Normal: Failed to extract normal data and write to CSV format\n");
                         continue;
                     } else if(args->verbose) {
                         if(offset > MAX_WRITE_BUFFER_SIZE * BUFFER_THRESHOLD) {
-                            printf("The writing buffer is nearly full with %d bytes\n", offset);
+                            printf("Normal: The writing buffer is nearly full with %d bytes\n", offset);
                         }
                     }
                     recordCount++;
@@ -285,17 +291,17 @@ void* processNormalData(void* programArgs) {
 
                 if(recordCount > 0) {
                     if(args->verbose) {
-                        printf("Extracted %d records\n", recordCount);
+                        printf("Normal: Extracted %d records\n", recordCount);
                     }
 
                     getCurrentTimestamp(timestamp, sizeof(timestamp));
                     snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", normalDirPath, timestamp);
 
                     if(writeToFile(filePath, writingBuffer, offset) < 0) {
-                        printf("Failed to write normal data to file\n");
+                        printf("Normal: Failed to write normal data to file\n");
                         goto write_completed;
                     } else if(args->verbose) {
-                        printf("Wrote %d bytes to file: %s\n", offset, filePath);
+                        printf("Normal: Wrote %d bytes to file: %s\n", offset, filePath);
                     }
                 }
             }
@@ -319,6 +325,256 @@ void* processNormalData(void* programArgs) {
     return NULL;
 }
 
+/** ----------------------------------------------------------------------------------------------------
+ * NetFlow Data Threads
+*/
+/**
+ * readNetFlowData
+ * - Thread function to read NetFlow data
+*/
+void* readNetFlowData(void *programArgs) {
+    program_args_t* args = (program_args_t*)programArgs;
+
+    int netflow_mock_datalen = 0;
+    if(args->mockBool) {
+/**
+ * Initialize mock data file
+*/
+        printf("NetFlow: Opening mock data file\n");
+        printf("NetFlow: Skipping QDMA initialization\n");
+
+        netflow_mock_fd = open("./mock/netflow.txt", O_RDONLY | O_NONBLOCK);
+        if(netflow_mock_fd < 0) {
+            printf("NetFlow: Failed to open mock data file\n");
+            gracefulExit(0);
+            goto netflowReadingFilesClosing;
+        }
+        netflow_mock_datalen = lseek(netflow_mock_fd, 0, SEEK_END);
+        lseek(netflow_mock_fd, 0, SEEK_SET);
+    }
+
+    int datalen = 0;
+    int total_datalen = 0;
+    ioctl_c2h_peek_data_t c2h_peek_data;
+    unsigned char *data = malloc(NETFLOW_MAX_DATA_SIZE);
+    _Atomic(DataNode*) producer_node;
+
+    struct timespec start, end;
+    double elapsed_time;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    while(!netflowReady && !shouldExit) {
+        usleep(1000);
+    }
+
+    if(args->verbose) {
+        printf("NetFlow data reading thread started\n");
+    }
+
+    while(!shouldExit) {
+/**
+ * Get Data
+*/
+        if(!args->mockBool) {
+            if(peek_qdma_data_len(netflow_fd, &c2h_peek_data) < 0) {
+                printf("NetFlow: Failed to peek QDMA data length\n");
+                gracefulExit(0);
+            }
+            datalen = c2h_peek_data.data_len;
+            if(datalen > 0 && read_qdma_binary(netflow_fd, data, datalen) < 0) {
+                printf("NetFlow: Failed to read QDMA data\n");
+                gracefulExit(0);
+            }
+        } else {
+            datalen = netflow_mock_datalen;
+            if(read(netflow_mock_fd, data, datalen) < 0) {
+                printf("NetFlow: Failed to read mock data\n");
+                gracefulExit(0);
+            }
+        }
+/**
+ * Read Data into buffer
+*/
+        if(datalen > 0) {
+            // get the producer node
+            producer_node = atomic_load(&netflowQueue.producer_ptr);
+
+            if(producer_node->length + datalen >= NETFLOW_MAX_DATA_SIZE) {
+                printf("NetFlow: Buffer overflow detected. Skipping data\n");
+            } else {
+                memcpy(producer_node->data+producer_node->length, data, datalen);
+                producer_node->length += datalen;
+                total_datalen += datalen;
+            }
+        }
+
+        if(total_datalen > 0) {
+            clock_gettime(CLOCK_MONOTONIC, &end);
+            elapsed_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+            if(elapsed_time > 3 || total_datalen >= ((double )NETFLOW_MAX_DATA_SIZE) * BUFFER_THRESHOLD) {
+                if(args->verbose) {
+                    printf("NetFlow: Elapsed time: %f seconds\n", elapsed_time);
+                    printf("NetFlow: Total data length: %d\n", total_datalen);
+                }
+                if(!getNextNodeToProduce(&netflowQueue)) {
+                    printf("NetFlow: Buffer full. Data might be lost\n");
+                } else if(args->verbose) {
+                    printf("NetFlow: Moved producer pointer to next node\n");
+                }
+
+                total_datalen = 0;
+                clock_gettime(CLOCK_MONOTONIC, &start);
+            }
+        } else {
+            clock_gettime(CLOCK_MONOTONIC, &start);
+        }
+    }
+
+    netflowReadingCleanup:
+
+    if(args->verbose) {
+        printf("NetFlow data reading thread exiting\n");
+    }
+
+    free(data);
+
+    netflowReadingFilesClosing:
+    if(netflow_fd > 0) {
+        close(netflow_fd);
+    }
+
+    if(netflow_mock_fd > 0) {
+        close(netflow_mock_fd);
+    }
+
+    return NULL;
+}
+
+/**
+ * processNetflowData
+ * - Thread function to process NetFlow data
+ * - Tokenizes the raw data
+ * - Extracts NetFlow data from the tokens
+ * - Writes the NetFlow data to a CSV file
+*/
+void* processNetflowData(void* programArgs) {
+    program_args_t* args = (program_args_t*)programArgs;
+
+    int ret = 0;
+
+    char netflowDirPath[256];
+
+    char filePath[256], timestamp[32];
+    char separator[] = {0x0D, 0x0A};
+
+    char** tokens = (char**)malloc(NETFLOW_MAX_BUFFER_COUNT * sizeof(char*));
+    char* tokenBuffer = (char*)malloc(NETFLOW_MAX_DATA_SIZE);
+    char* writingBuffer = (char*)malloc(MAX_WRITE_BUFFER_SIZE);
+
+    for(int i=0;i<NETFLOW_MAX_BUFFER_COUNT;i++) {
+        tokens[i] = tokenBuffer + i * NETFLOW_MAX_BUFFER_SIZE;
+    }
+
+    snprintf(netflowDirPath, sizeof(netflowDirPath), "%s/netflow", args->dir_path);
+    ensureDirectoryExists(netflowDirPath);
+
+    if (!tokens || !tokenBuffer || !writingBuffer) {
+        printf("NetFlow: Failed to allocate memory for tokens, tokenBuffer and/or writingBuffer\n");
+        gracefulExit(0);
+        goto netflowProcessingCleanup;
+    }
+
+    while(!netflowReady && !shouldExit) {
+        usleep(1000);
+    }
+
+    if(args->verbose) {
+        printf("NetFlow data processing thread started\n");
+    }
+
+    DataNode* consumer_node;
+    int numTokens = 0;
+    int recordCount = 0;
+    int offset = 0;
+    while(!shouldExit) {
+        if(getNextNodeToConsume(&netflowQueue)) {
+            // shouldExit = 1;
+
+            consumer_node = atomic_load(&netflowQueue.consumer_ptr);
+
+            if(consumer_node->length > 0) {
+                if(args->verbose) {
+                    printf("NetFlow: Processing %d bytes of data\n", consumer_node->length);
+                }
+
+                numTokens = 0;
+                if(tokenizeData(consumer_node->data, consumer_node->length, separator, tokens, &numTokens) < 0) {
+                    printf("NetFlow: Failed to tokenize data\n");
+                    goto write_completed;
+                } else if(args->verbose) {
+                    printf("NetFlow: Tokenized %d records\n", numTokens);
+                }
+
+                recordCount = 0;
+                offset = 0;
+                writeNetFlowRecordCSVHeaders(writingBuffer, &offset);
+                for(int i=0;i<numTokens;i++) {
+                    extractNetFlowRecordToCSV(writingBuffer, &offset, tokens[i], strlen(tokens[i]));
+                    if(ret < 0) {
+                        printf("NetFlow: Failed to extract NetFlow data and write to CSV format\n");
+                        continue;
+                    } else if(args->verbose) {
+                        if(offset > MAX_WRITE_BUFFER_SIZE * BUFFER_THRESHOLD) {
+                            printf("NetFlow: The writing buffer is nearly full with %d bytes\n", offset);
+                        }
+                    }
+                    recordCount++;
+                }
+
+                if(recordCount > 0) {
+                    if(args->verbose) {
+                        printf("NetFlow: Extracted %d records\n", recordCount);
+                    }
+
+                    getCurrentTimestamp(timestamp, sizeof(timestamp));
+                    snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", netflowDirPath, timestamp);
+
+                    if(writeToFile(filePath, writingBuffer, offset) < 0) {
+                        printf("NetFlow: Failed to write NetFlow data to file\n");
+                        goto write_completed;
+                    } else if(args->verbose) {
+                        printf("NetFlow: Wrote %d bytes to file: %s\n", offset, filePath);
+                    }
+                }
+            }
+            write_completed:
+            consumer_node->length = 0;
+        } else {
+            usleep(1000);
+        }
+    }
+
+    netflowProcessingCleanup:
+
+    if(args->verbose) {
+        printf("NetFlow data processing thread exiting\n");
+    }
+
+    free(tokens);
+    free(tokenBuffer);
+    free(writingBuffer);
+
+    return NULL;
+}
+
+/**
+ * main
+ * - Main function to initialize the program
+ * - Parses command line arguments
+ * - Initializes QDMA and Circular Queue
+ * - Starts the normal data reading and processing threads
+ * - Starts the NetFlow data reading and processing threads
+*/
 int main(int argc, char* argv[]) {
     program_args_t args;
     parseArguments(argc, argv, &args);
@@ -332,21 +588,32 @@ int main(int argc, char* argv[]) {
 */
     initDBWriter("localhost", "8086", "file_records");
 
-/**
- * Initialize Circular Queue
-*/
-    initializeCircularQueue(&normalQueue, NODE_COUNT, NORMAL_MAX_DATA_SIZE);
-
     device_id_num = strtoul(args.device_id, NULL, 16);
     unsigned int queue_id_num = strtoul(args.queue_id, NULL, 10);
 
 /**
- * Initialize Processing Thread
+ * Initialize Normal Data Threads and Circular Queue
 */
     pthread_t normal_reading_thread;
     pthread_t normal_processing_thread;
-    pthread_create(&normal_reading_thread, NULL, readNormalData, &args);
-    pthread_create(&normal_processing_thread, NULL, processNormalData, &args);
+    if(args.data & NORMAL_DATA_CMD) {
+        initializeCircularQueue(&normalQueue, NODE_COUNT, NORMAL_MAX_DATA_SIZE);
+
+        pthread_create(&normal_reading_thread, NULL, readNormalData, &args);
+        pthread_create(&normal_processing_thread, NULL, processNormalData, &args);
+    }
+
+/**
+ * Initialize NetFlow Data Threads and Circular Queue
+*/
+    pthread_t netflow_reading_thread;
+    pthread_t netflow_processing_thread;
+    if(args.data & NETFLOW_DATA_CMD) {
+        initializeCircularQueue(&netflowQueue, NODE_COUNT, NETFLOW_MAX_DATA_SIZE);
+
+        pthread_create(&netflow_reading_thread, NULL, readNetFlowData, &args);
+        pthread_create(&netflow_processing_thread, NULL, processNetflowData, &args);
+    }
 
     signal(SIGINT, gracefulExit);
     signal(SIGTERM, gracefulExit);
@@ -354,29 +621,56 @@ int main(int argc, char* argv[]) {
 
     if (!args.mockBool) {
 /**
- * Initialize QDMA
+ * Initialize QDMA for normal Data
 */
         if (args.verbose) {
-            printf("Initializing QDMA with device_id: %s, queue_id: %s\n", args.device_id, args.queue_id);
+            printf("Initializing QDMA for normal data with device_id: %s, queue_id: %d\n", args.device_id, queue_id_num);
         }
         if(queue_init(device_id_num, queue_id_num) < 0) {
             // printf("Failed to initialize QDMA\n");
             // return -1;
         }
 
-        char qdmaDevPath[64];
-        snprintf(qdmaDevPath, sizeof(qdmaDevPath), "/dev/qdma%s-ST-%s", args.device_id, args.queue_id);
+        char qdmaNormalDevPath[64];
+        snprintf(qdmaNormalDevPath, sizeof(qdmaNormalDevPath), "/dev/qdma%s-ST-%d", args.device_id, queue_id_num);
         
         if(args.verbose) {
-            printf("Opening QDMA device: %s\n", qdmaDevPath);
+            printf("Opening QDMA device: %s\n", qdmaNormalDevPath);
         }
-        normal_fd = open(qdmaDevPath, O_RDWR | O_NONBLOCK);
+        normal_fd = open(qdmaNormalDevPath, O_RDWR | O_NONBLOCK);
         if(normal_fd < 0) {
             printf("Failed to open QDMA device\n");
             gracefulExit(0);
             goto mainCleanup;
         }
 
+/**
+ * Initialize QDMA for NetFlow Data
+*/
+        if (args.verbose) {
+            printf("Initializing QDMA for NetFlow data with device_id: %s, queue_id: %d\n", args.device_id, queue_id_num+1);
+        }
+        if(queue_init(device_id_num, queue_id_num+1) < 0) {
+            // printf("Failed to initialize QDMA\n");
+            // return -1;
+        }
+
+        char qdmaNetflowDevPath[64];
+        snprintf(qdmaNetflowDevPath, sizeof(qdmaNetflowDevPath), "/dev/qdma%s-ST-%d", args.device_id, queue_id_num+1);
+        
+        if(args.verbose) {
+            printf("Opening QDMA device: %s\n", qdmaNetflowDevPath);
+        }
+        normal_fd = open(qdmaNetflowDevPath, O_RDWR | O_NONBLOCK);
+        if(normal_fd < 0) {
+            printf("Failed to open QDMA device\n");
+            gracefulExit(0);
+            goto mainCleanup;
+        }
+
+/**
+ * Check FPGA seed
+*/
         unsigned int current_seed;
         if(read_register(device_id_num, 0x0, &current_seed) < 0) {
             printf("Failed to read seed\n");
@@ -400,6 +694,7 @@ int main(int argc, char* argv[]) {
     }
 
     normalReady = 1;
+    netflowReady = 1;
 
     while(!shouldExit) {
         usleep(10000);
@@ -409,10 +704,19 @@ int main(int argc, char* argv[]) {
         printf("Cleaning up main thread\n");
     }
 
-    pthread_join(normal_processing_thread, NULL);
-    pthread_join(normal_reading_thread, NULL);
+    if(args.data & NORMAL_DATA_CMD) {
+        pthread_join(netflow_processing_thread, NULL);
+        pthread_join(netflow_reading_thread, NULL);
 
-    destroyCircularQueue(&normalQueue);
+        destroyCircularQueue(&netflowQueue);
+    }
+
+    if(args.data & NETFLOW_DATA_CMD) {
+        pthread_join(normal_processing_thread, NULL);
+        pthread_join(normal_reading_thread, NULL);
+
+        destroyCircularQueue(&normalQueue);
+    }
 
     destroyDBWriter();
 
