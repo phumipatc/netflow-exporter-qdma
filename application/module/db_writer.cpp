@@ -4,11 +4,10 @@
 #include <cstdio>
 #include <fcntl.h>
 
-influxdb_cpp::server_info conn;
+influxdb_cpp::server_info conn = influxdb_cpp::server_info("localhost", 8086, "file_records", "hoshino", "hoshino555", "ms", "_khxc6pgVeJ8hCJsXF3Gr2mqYuuTA9OCqq_AgHNR331lYG1DT_xueBLpxrW1LM_G8FPi-zZ3I9yJt2XJPitbQ==");
 
 void initDBWriter(const char* host, int port, const char* database) {
-	using namespace influxdb_cpp;
-	conn = influxdb_cpp::server_info(host, port, database, "hoshino", "hoshino555", "ms", "_khxc6pgVeJ8hCJsXF3Gr2mqYuuTA9OCqq_AgHNR331lYG1DT_xueBLpxrW1LM_G8FPi-zZ3I9yJt2XJPitbQ==");
+	// No specific initialization needed for influxdb-cpp
 }
 
 void destroyDBWriter() {
