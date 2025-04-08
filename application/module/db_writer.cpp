@@ -31,7 +31,7 @@ int logFileNamesToInfluxDB(const char* fileName) {
 }
 
 int writeToFile(const char* filePath, const char* buffer, size_t size) {
-	int fd = open(filePath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	int fd = open(filePath, O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0644);
 	if (fd < 0) {
 		printf("Error: Unable to open %s for writing.\n", filePath);
 		return -1;
