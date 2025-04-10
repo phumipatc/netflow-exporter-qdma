@@ -14,12 +14,18 @@ void destroyDBWriter() {
 	// No specific cleanup needed for influxdb-cpp
 }
 
-int logFileNamesToInfluxDB(const char* fileName) {
+int logToInfluxDB(const char* fileName, stat_t* stats) {
 	using namespace influxdb_cpp;
 
 	int status = builder()
 		.meas("file_records")
 		.field("file_name", fileName)
+		.field("tcp_count", stats->prot_tcp_count)
+		.field("udp_count", stats->prot_udp_count)
+		.field("icmp_count", stats->prot_icmp_count)
+		.field("other_count", stats->prot_other_count)
+		.field("sum_dPkts", stats->sum_dPkts)
+		.field("sum_dOctets", stats->sum_dOctets)
 		.post_http(conn);
 
 	if (status != 0) {
@@ -30,8 +36,8 @@ int logFileNamesToInfluxDB(const char* fileName) {
 	return 0;
 }
 
-int writeToFile(const char* filePath, const char* buffer, size_t size) {
-	int fd = open(filePath, O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0644);
+int writeToFile(const char* filePath, const char* buffer, size_t size, stat_t* stats) {
+	int fd = open(filePath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0) {
 		printf("Error: Unable to open %s for writing.\n", filePath);
 		return -1;
@@ -40,6 +46,6 @@ int writeToFile(const char* filePath, const char* buffer, size_t size) {
 	write(fd, buffer, size);
 	close(fd);
 
-	// return logFileNamesToInfluxDB("localhost", 8086, "file_records", filePath);
+	// return logToInfluxDB("localhost", 8086, "file_records", filePath, stats);
 	return 0;
 }

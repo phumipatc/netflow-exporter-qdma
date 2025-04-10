@@ -217,6 +217,7 @@ void* readNormalData(void *programArgs) {
 */
 void* processNormalData(void* programArgs) {
     program_args_t* args = (program_args_t*)programArgs;
+    stat_t stats;
 
     int ret = 0;
 
@@ -275,9 +276,10 @@ void* processNormalData(void* programArgs) {
 
                 recordCount = 0;
                 offset = 0;
+                memset(&stats, 0, sizeof(stats));
                 writeNormalDataCSVHeaders(writingBuffer, &offset);
                 for(int i=0;i<numTokens;i++) {
-                    extractNormalDataToCSV(writingBuffer, &offset, tokens[i], strlen(tokens[i]));
+                    extractNormalDataToCSV(writingBuffer, &offset, tokens[i], strlen(tokens[i]), &stats);
                     if(ret < 0) {
                         printf("Normal: Failed to extract normal data and write to CSV format\n");
                         continue;
@@ -297,7 +299,7 @@ void* processNormalData(void* programArgs) {
                     getCurrentTimestamp(timestamp, sizeof(timestamp));
                     snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", normalDirPath, timestamp);
 
-                    if(writeToFile(filePath, writingBuffer, offset) < 0) {
+                    if(writeToFile(filePath, writingBuffer, offset, &stats) < 0) {
                         printf("Normal: Failed to write normal data to file\n");
                         goto write_completed;
                     } else if(args->verbose) {
@@ -459,6 +461,7 @@ void* readNetFlowData(void *programArgs) {
 */
 void* processNetflowData(void* programArgs) {
     program_args_t* args = (program_args_t*)programArgs;
+    stat_t stats;
 
     int ret = 0;
 
@@ -517,9 +520,10 @@ void* processNetflowData(void* programArgs) {
 
                 recordCount = 0;
                 offset = 0;
+                memset(&stats, 0, sizeof(stats));
                 writeNetFlowRecordCSVHeaders(writingBuffer, &offset);
                 for(int i=0;i<numTokens;i++) {
-                    extractNetFlowRecordToCSV(writingBuffer, &offset, tokens[i], strlen(tokens[i]));
+                    extractNetFlowRecordToCSV(writingBuffer, &offset, tokens[i], strlen(tokens[i]), &stats);
                     if(ret < 0) {
                         printf("NetFlow: Failed to extract NetFlow data and write to CSV format\n");
                         continue;
@@ -539,7 +543,7 @@ void* processNetflowData(void* programArgs) {
                     getCurrentTimestamp(timestamp, sizeof(timestamp));
                     snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", netflowDirPath, timestamp);
 
-                    if(writeToFile(filePath, writingBuffer, offset) < 0) {
+                    if(writeToFile(filePath, writingBuffer, offset, &stats) < 0) {
                         printf("NetFlow: Failed to write NetFlow data to file\n");
                         goto write_completed;
                     } else if(args->verbose) {
@@ -705,17 +709,17 @@ int main(int argc, char* argv[]) {
     }
 
     if(args.data & NORMAL_DATA_CMD) {
-        pthread_join(netflow_processing_thread, NULL);
-        pthread_join(netflow_reading_thread, NULL);
-
-        destroyCircularQueue(&netflowQueue);
-    }
-
-    if(args.data & NETFLOW_DATA_CMD) {
         pthread_join(normal_processing_thread, NULL);
         pthread_join(normal_reading_thread, NULL);
 
         destroyCircularQueue(&normalQueue);
+    }
+
+    if(args.data & NETFLOW_DATA_CMD) {
+        pthread_join(netflow_processing_thread, NULL);
+        pthread_join(netflow_reading_thread, NULL);
+
+        destroyCircularQueue(&netflowQueue);
     }
 
     destroyDBWriter();

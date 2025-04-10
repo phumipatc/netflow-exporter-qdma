@@ -61,12 +61,21 @@ static const int netflow_record_skip_mark[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1
 };
 
+typedef struct {
+	int prot_tcp_count;
+	int prot_udp_count;
+	int prot_icmp_count;
+	int prot_other_count;
+	int sum_dPkts;
+	int sum_dOctets;
+} stat_t;
+
 int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **tokens, int *numTokens);
 
 void writeNormalDataCSVHeaders(char *writingBuffer, int *writingOffset);
-void extractNormalDataToCSV(char *writingBuffer, int *writingOffset, char *data, int len);
+void extractNormalDataToCSV(char *writingBuffer, int *writingOffset, char *data, int len, stat_t *stats);
 
 void writeNetFlowRecordCSVHeaders(char *writingBuffer, int *writingOffset);
-void extractNetFlowRecordToCSV(char *writingBuffer, int *writingOffset, char *buffer, int len);
+void extractNetFlowRecordToCSV(char *writingBuffer, int *writingOffset, char *buffer, int len, stat_t *stats);
 
 #endif // DATA_MANAGER_H

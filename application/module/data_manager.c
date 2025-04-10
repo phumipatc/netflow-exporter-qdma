@@ -74,7 +74,7 @@ void writeNormalDataCSVHeaders(char* writingBuffer, int *writingOffset) {
 	*writingOffset += sprintf(writingBuffer, "srcaddr,dstaddr,nexthop,dPkts,dOctets,srcport,dstport,prot,tos\n");
 }
 
-void extractNormalDataToCSV(char* writingBuffer, int *writingOffset, char* buffer, int len) {
+void extractNormalDataToCSV(char* writingBuffer, int *writingOffset, char* buffer, int len, stat_t *stats) {
 	int Readingoffset = 0;
 	int i, b;
 
@@ -88,6 +88,24 @@ void extractNormalDataToCSV(char* writingBuffer, int *writingOffset, char* buffe
 			continue;
 		}
 		toString(writingBuffer, writingOffset, value, ',');
+		if(i == 3) {
+			// dPkts
+			stats->sum_dPkts += value;
+		} else if(i == 4){
+			// dOctets
+			stats->sum_dOctets += value;
+		}else if(i == 7) {
+			// prot
+			if(value == 6) {
+				stats->prot_tcp_count++;
+			} else if(value == 17) {
+				stats->prot_udp_count++;
+			} else if(value == 1) {
+				stats->prot_icmp_count++;
+			} else {
+				stats->prot_other_count++;
+			}
+		}
 	}
 	writingBuffer[*writingOffset] = '\n';
 	++(*writingOffset);
@@ -97,7 +115,7 @@ void writeNetFlowRecordCSVHeaders(char* writingBuffer, int *writingOffset) {
 	*writingOffset += sprintf(writingBuffer, "srcaddr,dstaddr,nexthop,input,output,dPkts,dOctets,First,Last,srcport,dstport,tcp_flags,prot,tos,src_as,dst_as,src_mask,dst_mask\n");
 }
 
-void extractNetFlowRecordToCSV(char* writingBuffer, int *writingOffset, char* buffer, int len) {
+void extractNetFlowRecordToCSV(char* writingBuffer, int *writingOffset, char* buffer, int len, stat_t *stats) {
 	int readingOffset = 0;
 	int i, b;
 

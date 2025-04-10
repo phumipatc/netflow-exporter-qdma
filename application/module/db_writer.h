@@ -6,13 +6,17 @@ extern "C"
 {
 #endif
 
+#include "data_manager.h"
+
 void initDBWriter(const char* host, int port, const char* database);
 
 void destroyDBWriter();
 
-int logFileNamesToInfluxDB(const char* host, int port, const char* database, const char* fileName);
+int logToInfluxDB(const char* host, int port, const char* database, const char* fileName, stat_t* stats);
 
-int writeToFile(const char* filePath, const char* buffer, size_t size);
+// int logToSQL
+
+int writeToFile(const char* filePath, const char* buffer, size_t size, stat_t* stats);
 
 #ifdef __cplusplus
 }
