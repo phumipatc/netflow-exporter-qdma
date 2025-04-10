@@ -20,6 +20,7 @@ void parseArguments(int argc, char* argv[], program_args_t* args) {
     args->verbose = 0;
     args->helpBool = 0;
     args->mockBool = 0;
+    args->data = 0;
     strncpy(args->device_id, "01000", sizeof(args->device_id));
     strncpy(args->queue_id, "32", sizeof(args->queue_id));
     strncpy(args->dir_path, "/media/hoshino/nvme/netflow", sizeof(args->dir_path));
@@ -39,6 +40,10 @@ void parseArguments(int argc, char* argv[], program_args_t* args) {
         } else if (strcmp(argv[i], "-mock") == 0) {
             args->mockBool = 1;
             args->verbose = 1;
+        } else if (strcmp(argv[i], "-normal") == 0) {
+            args->data |= NORMAL_DATA_CMD;
+        } else if (strcmp(argv[i], "-netflow") == 0) {
+            args->data |= NETFLOW_DATA_CMD;
         } else {
             printf("Unknown argument: %s\n", argv[i]);
 			args->helpBool = 1;
@@ -46,9 +51,17 @@ void parseArguments(int argc, char* argv[], program_args_t* args) {
         }
     }
 
+    if(args->data == 0) {
+        args->data |= NORMAL_DATA_CMD;
+        args->data |= NETFLOW_DATA_CMD;
+    }
+
 	if (args->verbose) {
 		printf("Verbose mode enabled\n");
         printf("Mock mode: %s\n", args->mockBool ? "enabled" : "disabled");
+        printf("Data mode: %s%s\n", 
+            (args->data & NORMAL_DATA_CMD) ? "Normal " : "", 
+            (args->data & NETFLOW_DATA_CMD) ? "NetFlow " : "");
 		printf("Device ID: %s\n", args->device_id);
 		printf("Queue ID: %s\n", args->queue_id);
 		printf("Directory path: %s\n", args->dir_path);
