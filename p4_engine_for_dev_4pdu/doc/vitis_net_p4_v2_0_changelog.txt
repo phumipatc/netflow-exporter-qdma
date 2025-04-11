@@ -1,0 +1,140 @@
+2023.2.1:
+ * Version 2.0
+ * No changes
+
+2023.2:
+ * Version 2.0
+ * Bug Fix: Bug fix for header insertions where the same header can also be extracted from the packet
+ * Bug Fix: Fix for User Extern signal struct inconsistency
+ * New Feature: Added support for HBM & DDR Exact Match CAMs in Versal, removed support for HBM BCAMs in UltraScale/UltraScale+
+ * New Feature: Rebrand to AMD copyright information
+ * New Feature: Added Drop-down menu to allow selection of Example designs
+ * Feature Enhancement: Added 1-bit counter support and ECC scrubbing for Counter Extern
+
+2023.1.2:
+ * Version 1.3
+ * No changes
+
+2023.1.1:
+ * Version 1.3
+ * No changes
+
+2023.1:
+ * Version 1.3
+ * Bug Fix: Counter Extern Bug Fix where the Byte Count values might previously have been incremented by the wrong packet length value, particularly when there was a high rate of packets flowing.
+ * Bug Fix: Where a packet header can potentially be modified (extracted and then assigned a new value) or inserted (not extracted and then setValid()), the modify operation was not always working successfully.  This has now been fixed.
+ * New Feature: Checksum Extern Support
+ * New Feature: InternetChecksum Extern Support
+ * Feature Enhancement: Updated forward.p4 example design to include Checksum functionality.
+ * Feature Enhancement: Moved fiveTuple_tinycam.p4 and forward_tinycam.p4 to the five_tuple and forward directories respectively, to share the stimulus data with the non-tinycam variants.
+ * Feature Enhancement: Packet Rate Limiter can now be optionally enabled to limit the packet rate at the input to VitisNetP4.
+ * Feature Enhancement: Improved the Reserved Keywords checks performed at RTL code generation time.  This prints out an explicit error earlier on in the flow instead of failing during synthesis with an unknown error.
+ * Feature Enhancement: Added new P4 Annotation which can be applied to a table to override the TCAM Field Complexity limit of 16M. CR1131614
+ * Feature Enhancement: The Behavioural Model now checks to see if the num_masks value has been exceeded when adding table entries.
+ * Feature Enhancement: HBM drop-down menu option has been removed for non-HBM devices.  DDR drop-down menu option has been removed (since this feature is not yet supported).
+
+2022.2.2:
+ * Version 1.2
+ * No changes
+
+2022.2.1:
+ * Version 1.2
+ * No changes
+
+2022.2:
+ * Version 1.2
+ * Bug Fix: Fixed synthesis errors with complex clock frequency to packet rate ratios. Automatic internal rounding of the parameter values now takes place when necessary. CR 1124622
+ * Bug Fix: AXIS protocol bug fix in case of packet editing, so that m_axis_tvalid assertion does not wait for m_axis_tready assertion.
+ * New Feature: Counter Extern Support
+ * New Feature: Packet Rate Limiter no longer enforcing the specified packet rate at VitisNetP4 input. Instead, any CAMs using TDM will issue back-pressure when necessary.
+ * New Feature: Re-structured the example design to include the 'example_dut_wrapper' hierarchy.
+ * Feature Enhancement: Timing improvements , particularly around the m_axis_tready and m_axis_tkeep interface signals
+ * Feature Enhancement: The P4 Compiler now returns an error if a 0 response width is used for BCAM/STCAM/TCAM, since it is outside of the supported range 1-1024.
+ * Feature Enhancement: The user_metadata_in_valid port will be ignored and the signal will be auto-generated internally whenever the TID/TDEST/TUSER fields are being used.
+ * Feature Enhancement: HASH(0x149da30)
+ * Feature Enhancement: Added daisy_chain support in the example design, for simulating with multiple VitisNetP4 instances.
+
+2022.1.2:
+ * Version 1.1
+ * No changes
+
+2022.1.1:
+ * Version 1.1
+ * No changes
+
+2022.1:
+ * Version 1.1
+ * Port Change: The AXI-Lite interface, s_axi_aclk & s_axi_aresetn ports are removed if there are no memory-mapped elements in the design (i.e. if there are no tables in the P4 program and statistics registers are disabled) CR 1113577
+ * Port Change: user_metadata_in, user_metadata_in_valid, user_metadata_out & user_metadata_out_valid ports are removed if there are no User Metadata fields defined in the P4 program.  These ports can be restored by simply adding a '<bit 1> dummy' field to the User Metadata structure in the P4 program.
+ * Bug Fix: USER_META_DATA_WIDTH, NUM_USER_EXTERNS, USER_EXTERN_IN_WIDTH & USER_EXTERN_OUT_WIDTH parameters updated to fully support values of 0 at the IP, top-level and generated package file.  The default values for these parameters are also now set to 0.
+ * Feature Enhancement: Register map updates.
+ * Feature Enhancement: Debug mode for storing last key and response value (Direct table and TinyCAM).
+ * Feature Enhancement: Improved timing closure and utilization, particularly for 1024-bit packet bus.
+ * Feature Enhancement: Added new parsed_bytes field to standard_metadata_t structure
+
+2021.2.2:
+ * Version 1.0 (Rev. 2)
+ * No changes
+
+2021.2.1:
+ * Version 1.0 (Rev. 2)
+ * No changes
+
+2021.2:
+ * Version 1.0 (Rev. 2)
+ * Feature Enhancement: Parser - LUTRAM optimisation.
+ * Feature Enhancement: Post synthesis and implementation functional simulation support for the example design
+ * Revision change in one or more subcores
+
+2021.1.1:
+ * Version 1.0 (Rev. 1)
+ * Revision change in one or more subcores
+
+2021.1:
+ * Version 1.0
+ * General: First release to vivado
+
+(c) Copyright 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
+
+This file contains confidential and proprietary information
+of AMD and is protected under U.S. and international copyright
+and other intellectual property laws.
+
+DISCLAIMER
+This disclaimer is not a license and does not grant any
+rights to the materials distributed herewith. Except as
+otherwise provided in a valid license issued to you by
+AMD, and to the maximum extent permitted by applicable
+law: (1) THESE MATERIALS ARE MADE AVAILABLE "AS IS" AND
+WITH ALL FAULTS, AND AMD HEREBY DISCLAIMS ALL WARRANTIES
+AND CONDITIONS, EXPRESS, IMPLIED, OR STATUTORY, INCLUDING
+BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, NON-
+INFRINGEMENT, OR FITNESS FOR ANY PARTICULAR PURPOSE; and
+(2) AMD shall not be liable (whether in contract or tort,
+including negligence, or under any other theory of
+liability) for any loss or damage of any kind or nature
+related to, arising under or in connection with these
+materials, including for any direct, or any indirect,
+special, incidental, or consequential loss or damage
+(including loss of data, profits, goodwill, or any type of
+loss or damage suffered as a result of any action brought
+by a third party) even if such damage or loss was
+reasonably foreseeable or AMD had been advised of the
+possibility of the same.
+
+CRITICAL APPLICATIONS
+AMD products are not designed or intended to be fail-
+safe, or for use in any application requiring fail-safe
+performance, such as life-support or safety devices or
+systems, Class III medical devices, nuclear facilities,
+applications related to the deployment of airbags, or any
+other applications that could lead to death, personal
+injury, or severe property or environmental damage
+(individually and collectively, "Critical
+Applications"). Customer assumes the sole risk and
+liability of any use of AMD products in Critical
+Applications, subject only to applicable laws and
+regulations governing limitations on product liability.
+
+THIS COPYRIGHT NOTICE AND DISCLAIMER MUST BE RETAINED AS
+PART OF THIS FILE AT ALL TIMES.
