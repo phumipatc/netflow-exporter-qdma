@@ -1,6 +1,11 @@
 #ifndef DATA_MANAGER_H
 #define DATA_MANAGER_H
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include <stdint.h>
 
 // typedef struct {
@@ -77,5 +82,9 @@ void extractNormalDataToCSV(char *writingBuffer, int *writingOffset, char *data,
 
 void writeNetFlowRecordCSVHeaders(char *writingBuffer, int *writingOffset);
 void extractNetFlowRecordToCSV(char *writingBuffer, int *writingOffset, char *buffer, int len, stat_t *stats);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // DATA_MANAGER_H

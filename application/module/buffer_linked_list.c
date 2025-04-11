@@ -1,5 +1,7 @@
 #include "buffer_linked_list.h"
 
+#include <string.h>
+
 /**
  * initializeCircularQueue
  * - Initializes the circular buffer with NODE_COUNT number of nodes

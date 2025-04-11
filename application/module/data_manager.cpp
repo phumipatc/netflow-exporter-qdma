@@ -1,34 +1,38 @@
 #include "data_manager.h"
 
+#include <fmt/compile.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-int utoa(unsigned int value, char *buffer, int base) {
-	int i = 0;
-	int digit;
-	if (value == 0) {
-		buffer[i++] = '0';
-	}
-	while (value > 0) {
-		digit = value % base;
-		buffer[i++] = (digit < 10) ? '0' + digit : 'A' + digit - 10;
-		value /= base;
-	}
-	buffer[i] = '\0';
+// int utoa(unsigned int value, char *buffer, int base) {
+// 	int i = 0;
+// 	int digit;
+// 	if (value == 0) {
+// 		buffer[i++] = '0';
+// 	}
+// 	while (value > 0) {
+// 		digit = value % base;
+// 		buffer[i++] = (digit < 10) ? '0' + digit : 'A' + digit - 10;
+// 		value /= base;
+// 	}
+// 	buffer[i] = '\0';
 
-	// reverse the string
-	for (int j = 0; j < i / 2; ++j) {
-		char temp = buffer[j];
-		buffer[j] = buffer[i - j - 1];
-		buffer[i - j - 1] = temp;
-	}
-	return i;
-}
+// 	// reverse the string
+// 	for (int j = 0; j < i / 2; ++j) {
+// 		char temp = buffer[j];
+// 		buffer[j] = buffer[i - j - 1];
+// 		buffer[i - j - 1] = temp;
+// 	}
+// 	return i;
+// }
 
 // convert value to char array stored in buffer and return the number of characters written
 void toString(char *buffer, int *writingOffset, unsigned int value, char optional) {
-	*writingOffset += utoa(value, buffer + *writingOffset, 10);
+	// *writingOffset += utoa(value, buffer + *writingOffset, 10);
+	// using fmt::format_to instead
+	*writingOffset = fmt::format_to(buffer + *writingOffset, FMT_COMPILE("{}"), value) - buffer;
+	buffer[*writingOffset] = '\0';
 	if (optional) {
 		buffer[*writingOffset] = optional;
 		++(*writingOffset);
