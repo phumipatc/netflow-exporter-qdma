@@ -13,6 +13,7 @@ void initializeCircularQueue(CircularBuffer* queue, int node_count, int data_siz
 
     for(int i=0;i<node_count;i++) {
         DataNode* node = (DataNode*)malloc(sizeof(DataNode));
+        node->number = i;
 		node->data = (char*)malloc(data_size);
         memset(node->data, 0, data_size);
         node->length = 0;

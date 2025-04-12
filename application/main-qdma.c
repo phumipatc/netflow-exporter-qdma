@@ -177,7 +177,7 @@ void* readNormalData(void *programArgs) {
                 if(!getNextNodeToProduce(&normalQueue)) {
                     printf("Normal: Buffer full. Data might be lost\n");
                 } else if(args->verbose) {
-                    printf("Normal: Moved producer pointer to next node\n");
+                    printf("Normal: Moved producer pointer to %d\n", producer_node->number);
                 }
 
                 total_datalen = 0;
@@ -421,7 +421,7 @@ void* readNetFlowData(void *programArgs) {
                 if(!getNextNodeToProduce(&netflowQueue)) {
                     printf("NetFlow: Buffer full. Data might be lost\n");
                 } else if(args->verbose) {
-                    printf("NetFlow: Moved producer pointer to next node\n");
+                    printf("NetFlow: Moved producer pointer to %d\n", producer_node->number);
                 }
 
                 total_datalen = 0;
