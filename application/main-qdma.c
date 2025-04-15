@@ -299,6 +299,8 @@ void* processNormalData(void* programArgs) {
                     getCurrentTimestamp(timestamp, sizeof(timestamp));
                     snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", normalDirPath, timestamp);
 
+                    stats.count = recordCount;
+
                     if(writeToFile(filePath, writingBuffer, offset, &stats) < 0) {
                         printf("Normal: Failed to write normal data to file\n");
                         goto write_completed;
@@ -542,6 +544,8 @@ void* processNetflowData(void* programArgs) {
 
                     getCurrentTimestamp(timestamp, sizeof(timestamp));
                     snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", netflowDirPath, timestamp);
+
+                    stats.count = recordCount;
 
                     if(writeToFile(filePath, writingBuffer, offset, &stats) < 0) {
                         printf("NetFlow: Failed to write NetFlow data to file\n");
