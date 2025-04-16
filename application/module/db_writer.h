@@ -12,6 +12,8 @@ void initDBWriter(const char* host, int port, const char* database);
 
 void destroyDBWriter();
 
+int logToSQLite(const char* fileName, stat_t* stats);
+
 int logToInfluxDB(const char* host, int port, const char* database, const char* fileName, stat_t* stats);
 
 // int logToSQL

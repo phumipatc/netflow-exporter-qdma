@@ -177,7 +177,7 @@ void* readNormalData(void *programArgs) {
                 if(!getNextNodeToProduce(&normalQueue)) {
                     printf("Normal: Buffer full. Data might be lost\n");
                 } else if(args->verbose) {
-                    printf("Normal: Moved producer pointer to next node\n");
+                    printf("Normal: Moved producer pointer to %d\n", producer_node->number);
                 }
 
                 total_datalen = 0;
@@ -298,6 +298,8 @@ void* processNormalData(void* programArgs) {
 
                     getCurrentTimestamp(timestamp, sizeof(timestamp));
                     snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", normalDirPath, timestamp);
+
+                    stats.count = recordCount;
 
                     if(writeToFile(filePath, writingBuffer, offset, &stats) < 0) {
                         printf("Normal: Failed to write normal data to file\n");
@@ -421,7 +423,7 @@ void* readNetFlowData(void *programArgs) {
                 if(!getNextNodeToProduce(&netflowQueue)) {
                     printf("NetFlow: Buffer full. Data might be lost\n");
                 } else if(args->verbose) {
-                    printf("NetFlow: Moved producer pointer to next node\n");
+                    printf("NetFlow: Moved producer pointer to %d\n", producer_node->number);
                 }
 
                 total_datalen = 0;
@@ -543,6 +545,8 @@ void* processNetflowData(void* programArgs) {
                     getCurrentTimestamp(timestamp, sizeof(timestamp));
                     snprintf(filePath, sizeof(filePath), "%s/data_%s.csv", netflowDirPath, timestamp);
 
+                    stats.count = recordCount;
+
                     if(writeToFile(filePath, writingBuffer, offset, &stats) < 0) {
                         printf("NetFlow: Failed to write NetFlow data to file\n");
                         goto write_completed;
@@ -590,7 +594,7 @@ int main(int argc, char* argv[]) {
 /**
  * Initialize DB Writer
 */
-    initDBWriter("localhost", "8086", "file_records");
+    initDBWriter("localhost", 8086, "file_records.db");
 
     device_id_num = strtoul(args.device_id, NULL, 16);
     unsigned int queue_id_num = strtoul(args.queue_id, NULL, 10);

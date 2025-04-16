@@ -1,6 +1,11 @@
 #ifndef DATA_MANAGER_H
 #define DATA_MANAGER_H
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include <stdint.h>
 
 // typedef struct {
@@ -62,12 +67,13 @@ static const int netflow_record_skip_mark[] = {
 };
 
 typedef struct {
+	int count;
 	int prot_tcp_count;
 	int prot_udp_count;
 	int prot_icmp_count;
 	int prot_other_count;
-	int sum_dPkts;
-	int sum_dOctets;
+	uint64_t sum_dPkts;
+	uint64_t sum_dOctets;
 } stat_t;
 
 int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **tokens, int *numTokens);
@@ -77,5 +83,9 @@ void extractNormalDataToCSV(char *writingBuffer, int *writingOffset, char *data,
 
 void writeNetFlowRecordCSVHeaders(char *writingBuffer, int *writingOffset);
 void extractNetFlowRecordToCSV(char *writingBuffer, int *writingOffset, char *buffer, int len, stat_t *stats);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // DATA_MANAGER_H
