@@ -120,6 +120,6 @@ int writeToFile(const char* filePath, const char* buffer, size_t size, stat_t* s
 	close(fd);
 
 	// return logToInfluxDB("localhost", 8086, "file_records", filePath, stats);
-	// return logToSQLite(filePath, stats);
-	return 0;
+	return logToSQLite(filePath, stats);
+	// return 0;
 }

@@ -594,7 +594,7 @@ int main(int argc, char* argv[]) {
 /**
  * Initialize DB Writer
 */
-    initDBWriter("localhost", 8086, "file_records");
+    initDBWriter("localhost", 8086, "file_records.db");
 
     device_id_num = strtoul(args.device_id, NULL, 16);
     unsigned int queue_id_num = strtoul(args.queue_id, NULL, 10);

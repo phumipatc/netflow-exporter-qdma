@@ -133,6 +133,25 @@ void extractNetFlowRecordToCSV(char* writingBuffer, int *writingOffset, char* bu
 			continue;
 		}
 		toString(writingBuffer, writingOffset, value, ',');
+
+		if(i == 5) {
+			// dPkts
+			stats->sum_dPkts += value;
+		} else if(i == 6){
+			// dOctets
+			stats->sum_dOctets += value;
+		}else if(i == 13) {
+			// prot
+			if(value == 6) {
+				stats->prot_tcp_count++;
+			} else if(value == 17) {
+				stats->prot_udp_count++;
+			} else if(value == 1) {
+				stats->prot_icmp_count++;
+			} else {
+				stats->prot_other_count++;
+			}
+		}
 	}
 	writingBuffer[*writingOffset] = '\n';
 	++(*writingOffset);
