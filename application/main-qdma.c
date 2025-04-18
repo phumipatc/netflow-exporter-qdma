@@ -21,7 +21,7 @@
 */
 #define BUFFER_THRESHOLD 0.85
 #define MAX_WRITE_BUFFER_SIZE (1 << 30)
-#define NODE_COUNT (1 << 4)
+#define NODE_COUNT (1 << 5)
 #define SEED 0xA3F7C92D
 
 /**
@@ -594,7 +594,7 @@ int main(int argc, char* argv[]) {
 /**
  * Initialize DB Writer
 */
-    initDBWriter("localhost", 8086, "file_records.db");
+    initDBWriter("localhost", 8086, "/media/hoshino/nvme/netflow/file_records.db");
 
     device_id_num = strtoul(args.device_id, NULL, 16);
     unsigned int queue_id_num = strtoul(args.queue_id, NULL, 10);

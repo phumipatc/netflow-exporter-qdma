@@ -9,11 +9,11 @@ echo 512 | sudo tee /sys/bus/pci/devices/0000:01:00.0/qdma/qmax
 dma-ctl qdma01000 q add idx 32 mode st dir bi
 dma-ctl qdma01000 q start idx 32 dir bi
 
-cp -r ~/Desktop/Dej/MAIN_FPGA/NetFlow_Packet_Analyzer_shell.gen/sources_1/ip/p4_engine .
+cp -r ~/Desktop/Project_V3/Netflow_Packet_Analyzer_v3/Netflow_Packet_Analyzer/Netflow_Packet_Analyzer/Netflow_Packet_Analyzer.gen/sources_1/bd/design_netflow/ip/design_netflow_vitis_net_p4_0_0 .
 
-cp -r ~/netflow-analyzer/p4_engine_for_dev/src/sw/app ./p4_engine/src/sw/
+cp -r ~/netflow-analyzer/p4_engine_for_dev/src/sw/app ./design_netflow_vitis_net_p4_0_0/src/sw/
 
-cd p4_engine/src/sw/drivers
+cd design_netflow_vitis_net_p4_0_0/src/sw/drivers
 
 make all
 
