@@ -669,8 +669,8 @@ int main(int argc, char* argv[]) {
         if(args.verbose) {
             printf("Opening QDMA device: %s\n", qdmaNetflowDevPath);
         }
-        normal_fd = open(qdmaNetflowDevPath, O_RDWR | O_NONBLOCK);
-        if(normal_fd < 0) {
+        netflow_fd = open(qdmaNetflowDevPath, O_RDWR | O_NONBLOCK);
+        if(netflow_fd < 0) {
             printf("Failed to open QDMA device\n");
             gracefulExit(0);
             goto mainCleanup;
