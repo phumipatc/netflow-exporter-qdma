@@ -24,19 +24,19 @@ extern "C"
 // } normal_data_t;
 
 static const int normal_field_sizes_length = 10;
-// static const int normal_field_sizes_length = 11;
 static const uint8_t normal_field_sizes[] = {
 	32, 32, 32, 32, 32, 16, 16, 8, 8, 16
 };
-// static const uint8_t normal_field_sizes[] = {
-// 	32, 32, 32, 32, 32, 32, 16, 16, 8, 8, 16
-// };
 static const int normal_field_sum_size = 32 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 16;
-// static const int normal_field_sum_size = 32 + 32 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 16;
 static const int normal_field_skip_mark[] = {
 	// skipping the padding
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 1
 };
+// static const int normal_field_sizes_length = 11;
+// static const uint8_t normal_field_sizes[] = {
+// 	32, 32, 32, 32, 32, 32, 16, 16, 8, 8, 16
+// };
+// static const int normal_field_sum_size = 32 + 32 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 16;
 // static const int normal_field_skip_mark[] = {
 // 	// skipping the padding
 // 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1
