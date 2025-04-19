@@ -16,6 +16,7 @@ extern "C"
 // 	uint32_t	nexthop;
 // 	uint32_t	dPkts;
 // 	uint32_t	dOctets;
+//  uint32_t	first;
 // 	uint16_t	srcport;
 // 	uint16_t	dstport;
 // 	uint8_t		prot;
@@ -23,24 +24,24 @@ extern "C"
 // 	uint16_t	padding;
 // } normal_data_t;
 
-static const int normal_field_sizes_length = 10;
-static const uint8_t normal_field_sizes[] = {
-	32, 32, 32, 32, 32, 16, 16, 8, 8, 16
-};
-static const int normal_field_sum_size = 32 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 16;
-static const int normal_field_skip_mark[] = {
-	// skipping the padding
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 1
-};
-// static const int normal_field_sizes_length = 11;
+// static const int normal_field_sizes_length = 10;
 // static const uint8_t normal_field_sizes[] = {
-// 	32, 32, 32, 32, 32, 32, 16, 16, 8, 8, 16
+// 	32, 32, 32, 32, 32, 16, 16, 8, 8, 16
 // };
-// static const int normal_field_sum_size = 32 + 32 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 16;
+// static const int normal_field_sum_size = 32 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 16;
 // static const int normal_field_skip_mark[] = {
 // 	// skipping the padding
-// 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1
+// 	0, 0, 0, 0, 0, 0, 0, 0, 0, 1
 // };
+static const int normal_field_sizes_length = 11;
+static const uint8_t normal_field_sizes[] = {
+	32, 32, 32, 32, 32, 32, 16, 16, 8, 8, 16
+};
+static const int normal_field_sum_size = 32 + 32 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 16;
+static const int normal_field_skip_mark[] = {
+	// skipping the padding
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1
+};
 
 // typedef struct {
 // 	uint32_t	srcaddr;

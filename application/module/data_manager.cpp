@@ -75,7 +75,7 @@ int tokenizeData(unsigned char *buffer, int buffer_len, unsigned char *separator
 }
 
 void writeNormalDataCSVHeaders(char* writingBuffer, int *writingOffset) {
-	*writingOffset += sprintf(writingBuffer, "srcaddr,dstaddr,nexthop,dPkts,dOctets,srcport,dstport,prot,tos\n");
+	*writingOffset += sprintf(writingBuffer, "srcaddr,dstaddr,nexthop,dPkts,dOctets,first,srcport,dstport,prot,tos\n");
 }
 
 void extractNormalDataToCSV(char* writingBuffer, int *writingOffset, unsigned char* buffer, int len, stat_t *stats) {
