@@ -224,7 +224,7 @@ void* processNormalData(void* programArgs) {
     char normalDirPath[256];
 
     char filePath[256], timestamp[32];
-    char separator[] = {0x0D, 0x0A};
+    unsigned char separator[] = {0x0D, 0x0A};
 
     char** tokens = (char**)malloc(NORMAL_MAX_BUFFER_COUNT * sizeof(char*));
     char* tokenBuffer = (char*)malloc(NORMAL_MAX_DATA_SIZE);
@@ -470,10 +470,10 @@ void* processNetflowData(void* programArgs) {
     char netflowDirPath[256];
 
     char filePath[256], timestamp[32];
-    char separator[] = {0x0D, 0x0A};
+    unsigned char separator[] = {0x0D, 0x0A};
 
-    char** tokens = (char**)malloc(NETFLOW_MAX_BUFFER_COUNT * sizeof(char*));
-    char* tokenBuffer = (char*)malloc(NETFLOW_MAX_DATA_SIZE);
+    unsigned char** tokens = (unsigned char**)malloc(NETFLOW_MAX_BUFFER_COUNT * sizeof(unsigned char*));
+    unsigned char* tokenBuffer = (unsigned char*)malloc(NETFLOW_MAX_DATA_SIZE);
     char* writingBuffer = (char*)malloc(MAX_WRITE_BUFFER_SIZE);
 
     for(int i=0;i<NETFLOW_MAX_BUFFER_COUNT;i++) {
@@ -510,6 +510,9 @@ void* processNetflowData(void* programArgs) {
             if(consumer_node->length > 0) {
                 if(args->verbose) {
                     printf("NetFlow: Processing %d bytes of data\n", consumer_node->length);
+                    // for(int i=0;i<48;i++) {
+                    //     printf("%02x ", consumer_node->data[i]);
+                    // }
                 }
 
                 numTokens = 0;
@@ -518,6 +521,9 @@ void* processNetflowData(void* programArgs) {
                     goto write_completed;
                 } else if(args->verbose) {
                     printf("NetFlow: Tokenized %d records\n", numTokens);
+                    // for(int i=0;i<48;i++) {
+                    //     printf("%02x ", tokens[0][i]);
+                    // }
                 }
 
                 recordCount = 0;
@@ -717,6 +723,7 @@ int main(int argc, char* argv[]) {
         pthread_join(normal_reading_thread, NULL);
 
         destroyCircularQueue(&normalQueue);
+
     }
 
     if(args.data & NETFLOW_DATA_CMD) {

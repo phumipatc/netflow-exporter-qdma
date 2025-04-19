@@ -40,7 +40,7 @@ void toString(char *buffer, int *writingOffset, unsigned int value, char optiona
 	}
 }
 
-int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **tokens, int *numTokens) {
+int tokenizeData(unsigned char *buffer, int buffer_len, unsigned char *separator, unsigned char **tokens, int *numTokens) {
 	if (!buffer || buffer_len < 0 || !separator || !tokens || !numTokens) {
 		fprintf(stderr, "Invalid arguments\n");
 		return 0;
@@ -78,12 +78,13 @@ void writeNormalDataCSVHeaders(char* writingBuffer, int *writingOffset) {
 	*writingOffset += sprintf(writingBuffer, "srcaddr,dstaddr,nexthop,dPkts,dOctets,srcport,dstport,prot,tos\n");
 }
 
-void extractNormalDataToCSV(char* writingBuffer, int *writingOffset, char* buffer, int len, stat_t *stats) {
+void extractNormalDataToCSV(char* writingBuffer, int *writingOffset, unsigned char* buffer, int len, stat_t *stats) {
 	int Readingoffset = 0;
 	int i, b;
 
 	uint32_t value = 0;
 	for(i = 0; i < normal_field_sizes_length-1; i++) {
+		value = 0;
 		for(b = normal_field_sizes[i]/8; b > 0; --b) {
 			value <<= 8;
 			value |= buffer[Readingoffset++];
@@ -119,12 +120,13 @@ void writeNetFlowRecordCSVHeaders(char* writingBuffer, int *writingOffset) {
 	*writingOffset += sprintf(writingBuffer, "srcaddr,dstaddr,nexthop,input,output,dPkts,dOctets,First,Last,srcport,dstport,tcp_flags,prot,tos,src_as,dst_as,src_mask,dst_mask\n");
 }
 
-void extractNetFlowRecordToCSV(char* writingBuffer, int *writingOffset, char* buffer, int len, stat_t *stats) {
+void extractNetFlowRecordToCSV(char* writingBuffer, int *writingOffset, unsigned char* buffer, int len, stat_t *stats) {
 	int readingOffset = 0;
 	int i, b;
 
 	uint32_t value = 0;
 	for(i = 0; i < netflow_record_array_length-1; i++) {
+		value = 0;
 		for(b = record_field_sizes[i]/8; b > 0; --b) {
 			value <<= 8;
 			value |= buffer[readingOffset++];

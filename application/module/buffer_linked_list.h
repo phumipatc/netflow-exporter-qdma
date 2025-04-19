@@ -7,7 +7,7 @@
 // circular linked list node
 typedef struct DataNode {
     int number;
-    char *data;
+    unsigned char *data;
     int length;
     _Atomic(struct DataNode*) next;
 } DataNode;

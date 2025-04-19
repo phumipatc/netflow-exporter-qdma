@@ -24,14 +24,23 @@ extern "C"
 // } normal_data_t;
 
 static const int normal_field_sizes_length = 10;
+// static const int normal_field_sizes_length = 11;
 static const uint8_t normal_field_sizes[] = {
 	32, 32, 32, 32, 32, 16, 16, 8, 8, 16
 };
+// static const uint8_t normal_field_sizes[] = {
+// 	32, 32, 32, 32, 32, 32, 16, 16, 8, 8, 16
+// };
 static const int normal_field_sum_size = 32 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 16;
+// static const int normal_field_sum_size = 32 + 32 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 16;
 static const int normal_field_skip_mark[] = {
 	// skipping the padding
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 1
 };
+// static const int normal_field_skip_mark[] = {
+// 	// skipping the padding
+// 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1
+// };
 
 // typedef struct {
 // 	uint32_t	srcaddr;
@@ -76,13 +85,13 @@ typedef struct {
 	uint64_t sum_dOctets;
 } stat_t;
 
-int tokenizeData(unsigned char *buffer, int buffer_len, char *separator, char **tokens, int *numTokens);
+int tokenizeData(unsigned char *buffer, int buffer_len, unsigned char *separator, unsigned char **tokens, int *numTokens);
 
 void writeNormalDataCSVHeaders(char *writingBuffer, int *writingOffset);
-void extractNormalDataToCSV(char *writingBuffer, int *writingOffset, char *data, int len, stat_t *stats);
+void extractNormalDataToCSV(char *writingBuffer, int *writingOffset, unsigned char *data, int len, stat_t *stats);
 
 void writeNetFlowRecordCSVHeaders(char *writingBuffer, int *writingOffset);
-void extractNetFlowRecordToCSV(char *writingBuffer, int *writingOffset, char *buffer, int len, stat_t *stats);
+void extractNetFlowRecordToCSV(char *writingBuffer, int *writingOffset, unsigned char *buffer, int len, stat_t *stats);
 
 #ifdef __cplusplus
 }
