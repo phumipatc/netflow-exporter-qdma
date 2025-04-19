@@ -150,6 +150,8 @@ void* readNormalData(void *programArgs) {
                 gracefulExit(0);
             }
         }
+        // datalen should be multiple of normal_field_sum_size in bytes
+        datalen = (datalen / (normal_field_sum_size/8)) * (normal_field_sum_size/8);
 /**
  * Read Data into buffer
 */
@@ -396,6 +398,9 @@ void* readNetFlowData(void *programArgs) {
                 gracefulExit(0);
             }
         }
+        // datalen should be multiple of netflow_record_sum_size in bytes
+        datalen = (datalen / (netflow_record_sum_size/8)) * (netflow_record_sum_size/8);
+
 /**
  * Read Data into buffer
 */
