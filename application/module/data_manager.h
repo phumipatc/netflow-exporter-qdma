@@ -65,14 +65,14 @@ static const int normal_field_skip_mark[] = {
 // 	uint16_t	pad2;
 // } netflow_flow_record_t;
 
-static const int netflow_record_array_length = 19;
+static const int netflow_record_array_length = 20;
 static const uint8_t record_field_sizes[] = {
-	32, 32, 32, 16, 16, 32, 32, 32, 32, 16, 16, 8, 8, 8, 16, 16, 8, 8, 16
+	32, 32, 32, 16, 16, 32, 32, 32, 32, 16, 16, 8, 8, 8, 8, 16, 16, 8, 8, 16
 };
-static const int netflow_record_sum_size = 32 + 32 + 32 + 16 + 16 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 8 + 16 + 16 + 8 + 8 + 16;
+static const int netflow_record_sum_size = 32 + 32 + 32 + 16 + 16 + 32 + 32 + 32 + 32 + 16 + 16 + 8 + 8 + 8 + 8 + 16 + 16 + 8 + 8 + 16;
 static const int netflow_record_skip_mark[] = {
 	// skipping the padding
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1
 };
 
 typedef struct {
