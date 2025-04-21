@@ -130,6 +130,8 @@ void* readNormalData(void *programArgs) {
         printf("Normal data reading thread started\n");
     }
 
+    producer_node = normalQueue.producer_ptr;
+
     while(!shouldExit) {
 /**
  * Get Data
@@ -142,35 +144,26 @@ void* readNormalData(void *programArgs) {
             datalen = c2h_peek_data.data_len;
             // datalen should be multiple of normal_field_sum_size in bytes
             datalen = (datalen / (normal_field_sum_size/8)) * (normal_field_sum_size/8);
-            if(datalen > 0 && read_qdma_binary(normal_fd, data, datalen) < 0) {
+            if(datalen > 0 && read_qdma_binary(normal_fd, producer_node->data + producer_node->length, datalen) < 0) {
                 printf("Normal: Failed to read QDMA data\n");
                 gracefulExit(0);
             }
+            producer_node->length += datalen;
+            total_datalen += datalen;
         } else {
             datalen = normal_mock_datalen;
             // datalen should be multiple of normal_field_sum_size in bytes
             datalen = (datalen / (normal_field_sum_size/8)) * (normal_field_sum_size/8);
-            if(read(normal_mock_fd, data, datalen) < 0) {
+            if(read(normal_mock_fd, producer_node->data + producer_node->length, datalen) < 0) {
                 printf("Normal: Failed to read mock data\n");
                 gracefulExit(0);
             }
+            producer_node->length += datalen;
+            total_datalen += datalen;
         }
 /**
- * Read Data into buffer
+ * Change Buffer
 */
-        if(datalen > 0) {
-            // get the producer node
-            producer_node = atomic_load(&normalQueue.producer_ptr);
-
-            if(producer_node->length + datalen >= NORMAL_MAX_DATA_SIZE) {
-                printf("Normal: Buffer overflow detected. Skipping data\n");
-            } else {
-                memcpy(producer_node->data+producer_node->length, data, datalen);
-                producer_node->length += datalen;
-                total_datalen += datalen;
-            }
-        }
-
         if(total_datalen > 0) {
             clock_gettime(CLOCK_MONOTONIC, &end);
             elapsed_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
@@ -380,6 +373,8 @@ void* readNetFlowData(void *programArgs) {
         printf("NetFlow data reading thread started\n");
     }
 
+    producer_node = netflowQueue.producer_ptr;
+
     while(!shouldExit) {
 /**
  * Get Data
@@ -392,36 +387,27 @@ void* readNetFlowData(void *programArgs) {
             datalen = c2h_peek_data.data_len;
             // datalen should be multiple of netflow_record_sum_size in bytes
             datalen = (datalen / (netflow_record_sum_size/8)) * (netflow_record_sum_size/8);
-            if(datalen > 0 && read_qdma_binary(netflow_fd, data, datalen) < 0) {
+            if(datalen > 0 && read_qdma_binary(netflow_fd, producer_node->data + producer_node->length, datalen) < 0) {
                 printf("NetFlow: Failed to read QDMA data\n");
                 gracefulExit(0);
             }
+            producer_node->length += datalen;
+            total_datalen += datalen;
         } else {
             datalen = netflow_mock_datalen;
             // datalen should be multiple of netflow_record_sum_size in bytes
             datalen = (datalen / (netflow_record_sum_size/8)) * (netflow_record_sum_size/8);
-            if(read(netflow_mock_fd, data, datalen) < 0) {
+            if(read(netflow_mock_fd, producer_node->data + producer_node->length, datalen) < 0) {
                 printf("NetFlow: Failed to read mock data\n");
                 gracefulExit(0);
             }
+            producer_node->length += datalen;
+            total_datalen += datalen;
         }
 
 /**
- * Read Data into buffer
+ * Change Buffer
 */
-        if(datalen > 0) {
-            // get the producer node
-            producer_node = atomic_load(&netflowQueue.producer_ptr);
-
-            if(producer_node->length + datalen >= NETFLOW_MAX_DATA_SIZE) {
-                printf("NetFlow: Buffer overflow detected. Skipping data\n");
-            } else {
-                memcpy(producer_node->data+producer_node->length, data, datalen);
-                producer_node->length += datalen;
-                total_datalen += datalen;
-            }
-        }
-
         if(total_datalen > 0) {
             clock_gettime(CLOCK_MONOTONIC, &end);
             elapsed_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
