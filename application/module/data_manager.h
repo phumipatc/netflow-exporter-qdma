@@ -86,7 +86,7 @@ typedef struct {
 	uint64_t sum_dOctets;
 } stat_t;
 
-int tokenizeData(unsigned char *buffer, int buffer_len, unsigned char *separator, unsigned char **tokens, int *numTokens);
+int tokenizeData(unsigned char *buffer, int buffer_len, unsigned char *separator, unsigned char **tokens, int *numTokens, const int expectedSize);
 
 void writeNormalDataCSVHeaders(char *writingBuffer, int *writingOffset);
 void extractNormalDataToCSV(char *writingBuffer, int *writingOffset, unsigned char *data, int len, stat_t *stats);

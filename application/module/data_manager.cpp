@@ -40,7 +40,7 @@ void toString(char *buffer, int *writingOffset, unsigned int value, char optiona
 	}
 }
 
-int tokenizeData(unsigned char *buffer, int buffer_len, unsigned char *separator, unsigned char **tokens, int *numTokens) {
+int tokenizeData(unsigned char *buffer, int buffer_len, unsigned char *separator, unsigned char **tokens, int *numTokens, const int expectedSize) {
 	if (!buffer || buffer_len < 0 || !separator || !tokens || !numTokens) {
 		fprintf(stderr, "Invalid arguments\n");
 		return 0;
@@ -56,10 +56,15 @@ int tokenizeData(unsigned char *buffer, int buffer_len, unsigned char *separator
 
 	for (int i = 0; i < buffer_len; ++i) {
 		if (memcmp(buffer + i, separator, sep_len) == 0) {
-			memcpy(tokens[*numTokens], buffer + last_sep, i - last_sep + sep_len);
-			tokens[*numTokens][i - last_sep + sep_len] = '\0';
-			++(*numTokens);
-			last_sep = i + sep_len;
+			if(i - last_sep > expectedSize - sep_len) {
+				last_sep = i + sep_len - expectedSize;
+			}
+			if(last_sep == 0 || i - last_sep == expectedSize - sep_len) {
+				memcpy(tokens[*numTokens], buffer + last_sep, i - last_sep + sep_len);
+				tokens[*numTokens][i - last_sep + sep_len] = '\0';
+				++(*numTokens);
+				last_sep = i + sep_len;
+			}
 		}
 	}
 

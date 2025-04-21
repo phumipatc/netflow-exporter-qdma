@@ -11,6 +11,7 @@ typedef struct {
     int verbose;
 	int helpBool;
     int mockBool;
+    int tenGbpsTestBool;
     int data;
     char device_id[16];
     char queue_id[16];

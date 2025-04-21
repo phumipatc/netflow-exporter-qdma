@@ -11,7 +11,13 @@ void printUsage(const char* programName) {
     printf("  -qid <queue>      Specify queue ID (default: 32)\n");
     printf("  -dirpath <path>   Specify directory path for output (default: /media/hoshino/nvme/netflow/)\n");
     printf("  -h                Show this help message\n");
+    
+    printf("For developers:\n");
     printf("  -mock             Enable mock mode\n");
+    printf("  -normal           Enable normal data processing (default: true)\n");
+    printf("  -netflow          Enable NetFlow data processing (default: true)\n");
+    printf("  -tenGbpsTest      Enable 10Gbps test mode\n");
+
     exit(0);
 }
 
@@ -44,6 +50,10 @@ void parseArguments(int argc, char* argv[], program_args_t* args) {
             args->data |= NORMAL_DATA_CMD;
         } else if (strcmp(argv[i], "-netflow") == 0) {
             args->data |= NETFLOW_DATA_CMD;
+        } else if (strcmp(argv[i], "-tenGbpsTest") == 0) {
+            args->tenGbpsTestBool = 1;
+            args->mockBool = 1;
+            args->verbose = 1;
         } else {
             printf("Unknown argument: %s\n", argv[i]);
 			args->helpBool = 1;

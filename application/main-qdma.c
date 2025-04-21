@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <sched.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <stdatomic.h>
@@ -21,20 +22,20 @@
 */
 #define BUFFER_THRESHOLD 0.85
 #define MAX_WRITE_BUFFER_SIZE (1 << 30)
-#define NODE_COUNT (1 << 5)
+#define NODE_COUNT (1 << 4)
 #define SEED 0xA3F7C92D
 
 /**
  * Normal data processing
 */
-#define NORMAL_MAX_BUFFER_COUNT (1 << 23)
+#define NORMAL_MAX_BUFFER_COUNT (1 << 24)
 #define NORMAL_MAX_BUFFER_SIZE (1 << 5)
 #define NORMAL_MAX_DATA_SIZE (NORMAL_MAX_BUFFER_COUNT * NORMAL_MAX_BUFFER_SIZE)
 
 /**
  * NetFlow Record processing
 */
-#define NETFLOW_MAX_BUFFER_COUNT (1 << 22)
+#define NETFLOW_MAX_BUFFER_COUNT (1 << 23)
 #define NETFLOW_MAX_BUFFER_SIZE 52
 #define NETFLOW_MAX_DATA_SIZE (NETFLOW_MAX_BUFFER_COUNT * NETFLOW_MAX_BUFFER_SIZE)
 
@@ -139,19 +140,21 @@ void* readNormalData(void *programArgs) {
                 gracefulExit(0);
             }
             datalen = c2h_peek_data.data_len;
+            // datalen should be multiple of normal_field_sum_size in bytes
+            datalen = (datalen / (normal_field_sum_size/8)) * (normal_field_sum_size/8);
             if(datalen > 0 && read_qdma_binary(normal_fd, data, datalen) < 0) {
                 printf("Normal: Failed to read QDMA data\n");
                 gracefulExit(0);
             }
         } else {
             datalen = normal_mock_datalen;
+            // datalen should be multiple of normal_field_sum_size in bytes
+            datalen = (datalen / (normal_field_sum_size/8)) * (normal_field_sum_size/8);
             if(read(normal_mock_fd, data, datalen) < 0) {
                 printf("Normal: Failed to read mock data\n");
                 gracefulExit(0);
             }
         }
-        // datalen should be multiple of normal_field_sum_size in bytes
-        datalen = (datalen / (normal_field_sum_size/8)) * (normal_field_sum_size/8);
 /**
  * Read Data into buffer
 */
@@ -171,9 +174,9 @@ void* readNormalData(void *programArgs) {
         if(total_datalen > 0) {
             clock_gettime(CLOCK_MONOTONIC, &end);
             elapsed_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-            if(elapsed_time > 3 || total_datalen >= ((double )NORMAL_MAX_DATA_SIZE) * BUFFER_THRESHOLD) {
+            if(elapsed_time > 5 || total_datalen >= ((double )NORMAL_MAX_DATA_SIZE) * BUFFER_THRESHOLD) {
                 if(args->verbose) {
-                    printf("Normal: Elapsed time: %f seconds\n", elapsed_time);
+                    printf("Normal: Elapsed time: %lf seconds\n", elapsed_time);
                     printf("Normal: Total data length: %d\n", total_datalen);
                 }
                 if(!getNextNodeToProduce(&normalQueue)) {
@@ -269,7 +272,7 @@ void* processNormalData(void* programArgs) {
                 }
 
                 numTokens = 0;
-                if(tokenizeData(consumer_node->data, consumer_node->length, separator, tokens, &numTokens) < 0) {
+                if(tokenizeData(consumer_node->data, consumer_node->length, separator, tokens, &numTokens, normal_field_sum_size/8) < 0) {
                     printf("Normal: Failed to tokenize data\n");
                     goto write_completed;
                 } else if(args->verbose) {
@@ -314,7 +317,7 @@ void* processNormalData(void* programArgs) {
             write_completed:
             consumer_node->length = 0;
         } else {
-            usleep(1000);
+            usleep(100000);
         }
     }
 
@@ -387,19 +390,21 @@ void* readNetFlowData(void *programArgs) {
                 gracefulExit(0);
             }
             datalen = c2h_peek_data.data_len;
+            // datalen should be multiple of netflow_record_sum_size in bytes
+            datalen = (datalen / (netflow_record_sum_size/8)) * (netflow_record_sum_size/8);
             if(datalen > 0 && read_qdma_binary(netflow_fd, data, datalen) < 0) {
                 printf("NetFlow: Failed to read QDMA data\n");
                 gracefulExit(0);
             }
         } else {
             datalen = netflow_mock_datalen;
+            // datalen should be multiple of netflow_record_sum_size in bytes
+            datalen = (datalen / (netflow_record_sum_size/8)) * (netflow_record_sum_size/8);
             if(read(netflow_mock_fd, data, datalen) < 0) {
                 printf("NetFlow: Failed to read mock data\n");
                 gracefulExit(0);
             }
         }
-        // datalen should be multiple of netflow_record_sum_size in bytes
-        datalen = (datalen / (netflow_record_sum_size/8)) * (netflow_record_sum_size/8);
 
 /**
  * Read Data into buffer
@@ -420,9 +425,9 @@ void* readNetFlowData(void *programArgs) {
         if(total_datalen > 0) {
             clock_gettime(CLOCK_MONOTONIC, &end);
             elapsed_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-            if(elapsed_time > 3 || total_datalen >= ((double )NETFLOW_MAX_DATA_SIZE) * BUFFER_THRESHOLD) {
+            if(elapsed_time > 5 || total_datalen >= ((double )NETFLOW_MAX_DATA_SIZE) * BUFFER_THRESHOLD) {
                 if(args->verbose) {
-                    printf("NetFlow: Elapsed time: %f seconds\n", elapsed_time);
+                    printf("NetFlow: Elapsed time: %lf seconds\n", elapsed_time);
                     printf("NetFlow: Total data length: %d\n", total_datalen);
                 }
                 if(!getNextNodeToProduce(&netflowQueue)) {
@@ -521,7 +526,7 @@ void* processNetflowData(void* programArgs) {
                 }
 
                 numTokens = 0;
-                if(tokenizeData(consumer_node->data, consumer_node->length, separator, tokens, &numTokens) < 0) {
+                if(tokenizeData(consumer_node->data, consumer_node->length, separator, tokens, &numTokens, netflow_record_sum_size/8) < 0) {
                     printf("NetFlow: Failed to tokenize data\n");
                     goto write_completed;
                 } else if(args->verbose) {
@@ -569,7 +574,7 @@ void* processNetflowData(void* programArgs) {
             write_completed:
             consumer_node->length = 0;
         } else {
-            usleep(1000);
+            usleep(100000);
         }
     }
 
@@ -615,11 +620,32 @@ int main(int argc, char* argv[]) {
 */
     pthread_t normal_reading_thread;
     pthread_t normal_processing_thread;
+
+    pthread_attr_t attr;
+    struct sched_param param;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, &param);
+    param.sched_priority = 99;
+    pthread_attr_setschedparam(&attr, &param);
+    pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
+
+    cpu_set_t cpuset;
+
     if(args.data & NORMAL_DATA_CMD) {
         initializeCircularQueue(&normalQueue, NODE_COUNT, NORMAL_MAX_DATA_SIZE);
 
-        pthread_create(&normal_reading_thread, NULL, readNormalData, &args);
+        pthread_create(&normal_reading_thread, &attr, readNormalData, &args);
+        CPU_ZERO(&cpuset);
+        CPU_SET(6, &cpuset);
+        pthread_setaffinity_np(normal_reading_thread, sizeof(cpu_set_t), &cpuset);
+
         pthread_create(&normal_processing_thread, NULL, processNormalData, &args);
+        CPU_ZERO(&cpuset);
+        CPU_SET(0, &cpuset);
+        CPU_SET(1, &cpuset);
+        CPU_SET(4, &cpuset);
+        CPU_SET(5, &cpuset);
+        pthread_setaffinity_np(normal_processing_thread, sizeof(cpu_set_t), &cpuset);
     }
 
 /**
@@ -630,8 +656,18 @@ int main(int argc, char* argv[]) {
     if(args.data & NETFLOW_DATA_CMD) {
         initializeCircularQueue(&netflowQueue, NODE_COUNT, NETFLOW_MAX_DATA_SIZE);
 
-        pthread_create(&netflow_reading_thread, NULL, readNetFlowData, &args);
+        pthread_create(&netflow_reading_thread, &attr, readNetFlowData, &args);
+        CPU_ZERO(&cpuset);
+        CPU_SET(7, &cpuset);
+        pthread_setaffinity_np(netflow_reading_thread, sizeof(cpu_set_t), &cpuset);
+
         pthread_create(&netflow_processing_thread, NULL, processNetflowData, &args);
+        CPU_ZERO(&cpuset);
+        CPU_SET(0, &cpuset);
+        CPU_SET(1, &cpuset);
+        CPU_SET(4, &cpuset);
+        CPU_SET(5, &cpuset);
+        pthread_setaffinity_np(netflow_processing_thread, sizeof(cpu_set_t), &cpuset);
     }
 
     signal(SIGINT, gracefulExit);
