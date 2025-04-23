@@ -28,7 +28,7 @@
 // }
 
 // convert value to char array stored in buffer and return the number of characters written
-void toString(char *buffer, int *writingOffset, unsigned int value, char optional) {
+void toString(char *buffer, unsigned long *writingOffset, uint32_t value, char optional) {
 	// *writingOffset += utoa(value, buffer + *writingOffset, 10);
 	// using fmt::format_to instead
 	*writingOffset = fmt::format_to(buffer + *writingOffset, FMT_COMPILE("{}"), value) - buffer;
@@ -79,11 +79,11 @@ int tokenizeData(unsigned char *buffer, int buffer_len, unsigned char *separator
 
 }
 
-void writeNormalDataCSVHeaders(char* writingBuffer, int *writingOffset) {
+void writeNormalDataCSVHeaders(char* writingBuffer, unsigned long *writingOffset) {
 	*writingOffset += sprintf(writingBuffer, "srcaddr,dstaddr,nexthop,dPkts,dOctets,first,srcport,dstport,prot,tos\n");
 }
 
-void extractNormalDataToCSV(char* writingBuffer, int *writingOffset, unsigned char* buffer, int len, stat_t *stats) {
+void extractNormalDataToCSV(char* writingBuffer, unsigned long *writingOffset, unsigned char* buffer, int len, stat_t *stats) {
 	int Readingoffset = 0;
 	int i, b;
 
@@ -121,11 +121,11 @@ void extractNormalDataToCSV(char* writingBuffer, int *writingOffset, unsigned ch
 	++(*writingOffset);
 }
 
-void writeNetFlowRecordCSVHeaders(char* writingBuffer, int *writingOffset) {
+void writeNetFlowRecordCSVHeaders(char* writingBuffer, unsigned long *writingOffset) {
 	*writingOffset += sprintf(writingBuffer, "srcaddr,dstaddr,nexthop,input,output,dPkts,dOctets,First,Last,srcport,dstport,tcp_flags,prot,tos,src_as,dst_as,src_mask,dst_mask\n");
 }
 
-void extractNetFlowRecordToCSV(char* writingBuffer, int *writingOffset, unsigned char* buffer, int len, stat_t *stats) {
+void extractNetFlowRecordToCSV(char* writingBuffer, unsigned long *writingOffset, unsigned char* buffer, int len, stat_t *stats) {
 	int readingOffset = 0;
 	int i, b;
 

@@ -88,11 +88,11 @@ typedef struct {
 
 int tokenizeData(unsigned char *buffer, int buffer_len, unsigned char *separator, unsigned char **tokens, int *numTokens, const int expectedSize);
 
-void writeNormalDataCSVHeaders(char *writingBuffer, int *writingOffset);
-void extractNormalDataToCSV(char *writingBuffer, int *writingOffset, unsigned char *data, int len, stat_t *stats);
+void writeNormalDataCSVHeaders(char *writingBuffer, unsigned long *writingOffset);
+void extractNormalDataToCSV(char *writingBuffer, unsigned long *writingOffset, unsigned char *data, int len, stat_t *stats);
 
-void writeNetFlowRecordCSVHeaders(char *writingBuffer, int *writingOffset);
-void extractNetFlowRecordToCSV(char *writingBuffer, int *writingOffset, unsigned char *buffer, int len, stat_t *stats);
+void writeNetFlowRecordCSVHeaders(char *writingBuffer, unsigned long *writingOffset);
+void extractNetFlowRecordToCSV(char *writingBuffer, unsigned long *writingOffset, unsigned char *buffer, int len, stat_t *stats);
 
 #ifdef __cplusplus
 }

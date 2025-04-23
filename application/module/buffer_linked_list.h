@@ -8,7 +8,7 @@
 typedef struct DataNode {
     int number;
     unsigned char *data;
-    int length;
+    size_t length;
     _Atomic(struct DataNode*) next;
 } DataNode;
 
@@ -20,7 +20,7 @@ typedef struct {
 } CircularBuffer;
 
 // Function prototypes
-void initializeCircularQueue(CircularBuffer* queue, int node_count, int data_size);
+void initializeCircularQueue(CircularBuffer* queue, int node_count, size_t data_size);
 void destroyCircularQueue(CircularBuffer* queue);
 
 void moveProducerPtr(CircularBuffer* queue);

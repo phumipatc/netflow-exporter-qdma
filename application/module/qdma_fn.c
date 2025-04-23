@@ -150,8 +150,9 @@ int prepare_q_start(struct xcmd_info *xcmd, unsigned int device_id, int queue_id
 	qparm->idx = queue_id;
 	qparm->num_q = 1;
 	qparm->flags = queue_dir;
-	qparm->qrngsz_idx = 9;
-	qparm->sflags = (1 << QPARM_IDX) | (1 << QPARM_DIR) | (1 << QPARM_RNGSZ_IDX);
+	qparm->qrngsz_idx = 15;
+	qparm->c2h_bufsz_idx = 10;
+	qparm->sflags = (1 << QPARM_IDX) | (1 << QPARM_DIR) | (1 << QPARM_RNGSZ_IDX) | (1 << QPARM_C2H_BUFSZ_IDX);
 
 	ret = xnl_proc_cmd(xcmd);
 	if (ret < 0) {

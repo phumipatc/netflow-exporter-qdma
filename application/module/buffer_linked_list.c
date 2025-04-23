@@ -7,7 +7,7 @@
  * - Initializes the circular buffer with NODE_COUNT number of nodes
  * - Need to be called before spawning any threads
 */
-void initializeCircularQueue(CircularBuffer* queue, int node_count, int data_size) {
+void initializeCircularQueue(CircularBuffer* queue, int node_count, size_t data_size) {
     DataNode* head = NULL;
     DataNode* prev = NULL;
 
@@ -60,7 +60,7 @@ void destroyCircularQueue(CircularBuffer* queue) {
  * - Requires atomic operations to ensure thread safety
 */
 void moveProducerPtr(CircularBuffer* queue) {
-    atomic_store(&queue->producer_ptr, atomic_load(&queue->producer_ptr)->next);
+    atomic_store(&queue->producer_ptr, queue->producer_ptr->next);
 }
 
 /**
@@ -69,7 +69,7 @@ void moveProducerPtr(CircularBuffer* queue) {
  * - Requires atomic operations to ensure thread safety
 */
 void moveConsumerPtr(CircularBuffer* queue) {
-    atomic_store(&queue->consumer_ptr, atomic_load(&queue->consumer_ptr)->next);
+    atomic_store(&queue->consumer_ptr, queue->consumer_ptr->next);
 }
 
 /**
@@ -81,7 +81,7 @@ void moveConsumerPtr(CircularBuffer* queue) {
 */
 int getNextNodeToConsume(CircularBuffer* queue) {
     // check if consumer has caught up with producer
-    if(atomic_load(&queue->consumer_ptr)->next == atomic_load(&queue->producer_ptr)) {
+    if(queue->consumer_ptr->next == atomic_load(&queue->producer_ptr)) {
         return 0;
     }
 
@@ -99,11 +99,13 @@ int getNextNodeToConsume(CircularBuffer* queue) {
 */
 int getNextNodeToProduce(CircularBuffer* queue) {
     // check if producer has caught up with consumer
-    if(atomic_load(&queue->producer_ptr)->next == atomic_load(&queue->consumer_ptr)) {
-        return 0;
-    }
+    // if(queue->producer_ptr->next == atomic_load(&queue->consumer_ptr)) {
+    //     return 0;
+    // }
 
-    moveProducerPtr(queue);
+    // moveProducerPtr(queue);
+
+    queue->producer_ptr = queue->producer_ptr->next;
 
     return 1;
 }

@@ -116,7 +116,10 @@ int writeToFile(const char* filePath, const char* buffer, size_t size, stat_t* s
 		return -1;
 	}
 
-	write(fd, buffer, size);
+	size_t writtenSize = 0;
+	do {
+		writtenSize += pwrite(fd, buffer + writtenSize, size-writtenSize, writtenSize);
+	} while(writtenSize < size);
 	close(fd);
 
 	// return logToInfluxDB("localhost", 8086, "file_records", filePath, stats);
